@@ -401,51 +401,101 @@ def country_name_to_code(name):
 # =========================
 # SIDEBAR & FILTERS
 # =========================
+# --- Custom CSS for Pastel Buttons
+st.markdown("""
+    <style>
+    .custom-salasar-heading {
+        font-size: 1.25em !important;
+        font-weight: bold;
+        letter-spacing: 2px;
+        margin-top: 0.5em;
+        margin-bottom: 1.5em;
+        color: #2d448d;
+        text-align: center;
+    }
+    .pastel-btn {
+        background: #e5ecf6;
+        color: #2d448d;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        padding: 0.7em 1em;
+        margin-bottom: 0.6em;
+        width: 100%;
+        text-align: left;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        transition: background 0.2s;
+        font-size: 1.02em;
+        cursor: pointer;
+    }
+    .pastel-btn:hover {
+        background: #d1e6fa;
+        color: #205080;
+    }
+    .dropdown-btn {
+        background: #f9e7ef;
+        color: #9f4176;
+        margin-top: 0.4em;
+        margin-bottom: 0.2em;
+    }
+    .dropdown-btn:hover {
+        background: #f5d6e5;
+        color: #7c2e5b;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 with st.sidebar:
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
-    st.title('Report Filters')
 
-    def get_month_options():
-        months, today, d = [], date.today(), date(2025,1,1)
-        while d <= today:
-            months.append(d)
-            d += relativedelta(months=1)
-        return [m.strftime('%B %Y') for m in months]
+    st.markdown('<div class="custom-salasar-heading">SALASAR DIGITAL MARKETING DASHBOARD</div>', unsafe_allow_html=True)
 
-    month_options = get_month_options()
-    if "selected_month" not in st.session_state:
-        st.session_state["selected_month"] = month_options[-1]
-    sel = st.selectbox('Select report month:', month_options, index=month_options.index(st.session_state["selected_month"]))
-    if sel != st.session_state["selected_month"]:
-        st.session_state["selected_month"] = sel
+    # --- State for selected main section and social dropdown
+    if "sidebar_section" not in st.session_state:
+        st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
+    if "show_social_dropdown" not in st.session_state:
+        st.session_state["show_social_dropdown"] = False
 
-    def get_month_range(sel):
-        start = datetime.strptime(sel, '%B %Y').date().replace(day=1)
-        end = start + relativedelta(months=1) - timedelta(days=1)
-        prev_end = start - timedelta(days=1)
-        prev_start = prev_end.replace(day=1)
-        return start, end, prev_start, prev_end
+    # --- WEBSITE ANALYTICS BUTTON
+    if st.button("WEBSITE ANALYTICS", key="btn_website", help="Show all website analytics", 
+                 use_container_width=True):
+        st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
+        st.session_state["show_social_dropdown"] = False
 
-    sd, ed, psd, ped = get_month_range(st.session_state["selected_month"])
-    st.markdown(
-        f"""
-        <div style="border-left: 4px solid #459fda; background: #f0f7fa; padding: 1em 1.2em; margin-bottom: 1em; border-radius: 6px;">
-            <span style="font-size: 1.1em; color: #2d448d;">
-            <b>Current period:</b> {sd.strftime('%B %Y')}<br>
-            <b>Previous period:</b> {psd.strftime('%B %Y')}
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # --- LEADS DASHBOARD BUTTON
+    if st.button("LEADS DASHBOARD", key="btn_leads", help="Show leads dashboard", 
+                 use_container_width=True):
+        st.session_state["sidebar_section"] = "LEADS DASHBOARD"
+        st.session_state["show_social_dropdown"] = False
 
-    if st.button("Refresh Data (Clear Cache)"):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.session_state["selected_month"] = month_options[-1]
-        st.session_state["refresh"] = True
+    # --- SOCIAL MEDIA ANALYTICS BUTTON (Dropdown)
+    if st.button("SOCIAL MEDIA ANALYTICS ▼" if not st.session_state["show_social_dropdown"] else "SOCIAL MEDIA ANALYTICS ▲", 
+                 key="btn_social", 
+                 help="Show social media analytics", 
+                 use_container_width=True):
+        st.session_state["show_social_dropdown"] = not st.session_state["show_social_dropdown"]
+        st.session_state["sidebar_section"] = "SOCIAL MEDIA ANALYTICS"
 
-    # --- FLUSH DATABASE FUNCTION ---
+    # --- SOCIAL MEDIA SUB-BUTTONS (only show if dropdown is open)
+    social_reports = [
+        ("LINKEDIN ANALYTICS", "linkedin"),
+        ("FACEBOOK ANALYTICS", "facebook"),
+        ("INSTAGRAM ANALYTICS", "instagram"),
+        ("YOUTUBE ANALYTICS", "youtube"),
+    ]
+    if st.session_state["show_social_dropdown"]:
+        for label, key in social_reports:
+            if st.button(label, key=f"btn_{key}_analytics", 
+                         help=f"Show {label.lower()}",
+                         use_container_width=True):
+                st.session_state["sidebar_section"] = label
+
+    # --- DOWNLOAD REPORT BUTTON
+    if st.button("DOWNLOAD REPORT", key="btn_download_report", use_container_width=True):
+        st.session_state["sidebar_section"] = "DOWNLOAD REPORT"
+
+    # --- FLUSH MONGO BUTTON
     def flush_mongo_database():
         try:
             mongo_uri = st.secrets["mongo_uri"]
@@ -460,19 +510,11 @@ with st.sidebar:
             st.error(f"Could not flush database: {e}")
             return False
 
-    # Place the flush button RIGHT after the "Refresh Data" button and BEFORE the PDF button!
-    flush_btn = st.button("Flush Mongo 🗑️")
-    if flush_btn:
+    if st.button("FLUSH MONGO", key="btn_flush_mongo", use_container_width=True):
         if flush_mongo_database():
             st.success("All data in the database has been deleted!")
         else:
             st.error("Failed to flush data.")
-
-    pdf_report_btn = st.button("Download PDF Report")
-
-if st.session_state.get("refresh", False):
-    st.session_state["refresh"] = False
-    st.rerun()
 
 # =========================
 # AUTHENTICATION & CONFIG
