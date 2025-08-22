@@ -401,94 +401,23 @@ def country_name_to_code(name):
 # =========================
 # SIDEBAR & FILTERS
 # =========================
-# --- Custom CSS for Pastel Buttons & Dropdown Animation ---
-st.markdown("""
-    <style>
-    .custom-salasar-heading {
-        font-size: 1.25em !important;
-        font-weight: bold;
-        letter-spacing: 2px;
-        margin-top: 0.5em;
-        margin-bottom: 1.5em;
-        color: #2d448d;
-        text-align: center;
-    }
-    .pastel-btn {
-        background: #e5ecf6;
-        color: #2d448d;
-        font-weight: 700;
-        border: none;
-        border-radius: 8px;
-        padding: 0.75em 1em;
-        margin-bottom: 0.6em;
-        width: 100%;
-        text-align: left;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        transition: background 0.2s;
-        font-size: 1.02em;
-        cursor: pointer;
-        outline: none;
-    }
-    .pastel-btn:hover {
-        background: #d1e6fa;
-        color: #205080;
-    }
-    /* Dropdown animation styles */
-    .dropdown-outer {
-        width: 100%;
-    }
-    .dropdown-inner {
-        max-height: 0;
-        overflow: hidden;
-        opacity: 0;
-        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-        will-change: max-height, opacity;
-    }
-    .dropdown-inner.open {
-        opacity: 1;
-        max-height: 350px;
-        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-    }
-    .dropdown-btn {
-        background: #f9e7ef;
-        color: #9f4176;
-        margin-top: 0.4em;
-        margin-bottom: 0.2em;
-        border-radius: 6px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        width: 95%;
-        border: none;
-        padding: 0.5em 1em;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-    .dropdown-btn:hover {
-        background: #f5d6e5;
-        color: #7c2e5b;
-    }
-    /* Hide Streamlit's default button background */
-    .stButton>button {
-        background: none !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+import streamlit as st
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
+from pymongo import MongoClient
 
 with st.sidebar:
-    # --- LOGO and Heading ---
+    # Logo at the top
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
-    st.markdown('<div class="custom-salasar-heading">SALASAR DIGITAL MARKETING DASHBOARD</div>', unsafe_allow_html=True)
+    st.markdown("### SALASAR DIGITAL MARKETING DASHBOARD")
 
-    # --- FILTERS: Month selection (optional, remove if not needed) ---
+    # --- FILTERS: Month selection (unchanged logic) ---
     def get_month_options():
         months, today, d = [], date.today(), date(2025,1,1)
         while d <= today:
             months.append(d)
             d += relativedelta(months=1)
         return [m.strftime('%B %Y') for m in months]
-
     month_options = get_month_options()
     if "selected_month" not in st.session_state:
         st.session_state["selected_month"] = month_options[-1]
@@ -502,99 +431,51 @@ with st.sidebar:
         prev_end = start - timedelta(days=1)
         prev_start = prev_end.replace(day=1)
         return start, end, prev_start, prev_end
-
     sd, ed, psd, ped = get_month_range(st.session_state["selected_month"])
-    st.markdown(
-        f"""
-        <div style="border-left: 4px solid #459fda; background: #f0f7fa; padding: 1em 1.2em; margin-bottom: 1em; border-radius: 6px;">
-            <span style="font-size: 1.1em; color: #2d448d;">
-            <b>Current period:</b> {sd.strftime('%B %Y')}<br>
-            <b>Previous period:</b> {psd.strftime('%B %Y')}
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.info(f"**Current period:** {sd.strftime('%B %Y')}\n\n**Previous period:** {psd.strftime('%B %Y')}")
 
-    # --- State for navigation ---
+    # --- SIDEBAR BUTTON STATE ---
     if "sidebar_section" not in st.session_state:
         st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
-    if "show_social_dropdown" not in st.session_state:
-        st.session_state["show_social_dropdown"] = False
 
-    # --- WEBSITE ANALYTICS BUTTON ---
-    if st.button("WEBSITE ANALYTICS", key="btn_website", help="Show all website analytics", use_container_width=True):
+    # Main navigation buttons
+    if st.button("WEBSITE ANALYTICS"):
         st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
-        st.session_state["show_social_dropdown"] = False
 
-    # --- LEADS DASHBOARD BUTTON ---
-    if st.button("LEADS DASHBOARD", key="btn_leads", help="Show leads dashboard", use_container_width=True):
+    if st.button("LEADS DASHBOARD"):
         st.session_state["sidebar_section"] = "LEADS DASHBOARD"
-        st.session_state["show_social_dropdown"] = False
 
-    # --- SOCIAL MEDIA ANALYTICS BUTTON (Dropdown) ---
-    social_btn_label = "SOCIAL MEDIA ANALYTICS ▼" if not st.session_state["show_social_dropdown"] else "SOCIAL MEDIA ANALYTICS ▲"
-    if st.button(social_btn_label, key="btn_social", help="Show social media analytics", use_container_width=True):
-        st.session_state["show_social_dropdown"] = not st.session_state["show_social_dropdown"]
-        st.session_state["sidebar_section"] = "SOCIAL MEDIA ANALYTICS"
+    if st.button("LINKEDIN ANALYTICS"):
+        st.session_state["sidebar_section"] = "LINKEDIN ANALYTICS"
 
-    # --- SOCIAL MEDIA SUB-BUTTONS WITH ANIMATION ---
-    social_reports = [
-        ("LINKEDIN ANALYTICS", "linkedin"),
-        ("FACEBOOK ANALYTICS", "facebook"),
-        ("INSTAGRAM ANALYTICS", "instagram"),
-        ("YOUTUBE ANALYTICS", "youtube"),
-    ]
-    dropdown_open = "open" if st.session_state["show_social_dropdown"] else ""
-    st.markdown(f'''
-        <div class="dropdown-outer">
-            <div class="dropdown-inner {dropdown_open}">
-    ''', unsafe_allow_html=True)
-    if st.session_state["show_social_dropdown"]:
-        for label, key in social_reports:
-            btn = st.button(label, key=f"btn_{key}_analytics", help=f"Show {label.lower()}", use_container_width=True)
-            if btn:
-                st.session_state["sidebar_section"] = label
-    st.markdown('''
-            </div>
-        </div>
-    ''', unsafe_allow_html=True)
+    if st.button("FACEBOOK ANALYTICS"):
+        st.session_state["sidebar_section"] = "FACEBOOK ANALYTICS"
 
-    # --- DOWNLOAD REPORT BUTTON ---
-    if st.button("DOWNLOAD REPORT", key="btn_download_report", use_container_width=True):
+    if st.button("INSTAGRAM ANALYTICS"):
+        st.session_state["sidebar_section"] = "INSTAGRAM ANALYTICS"
+
+    if st.button("YOUTUBE ANALYTICS"):
+        st.session_state["sidebar_section"] = "YOUTUBE ANALYTICS"
+
+    if st.button("DOWNLOAD REPORT"):
         st.session_state["sidebar_section"] = "DOWNLOAD REPORT"
 
-    # --- FLUSH MONGO BUTTON ---
+    # Flush Mongo button and function
     def flush_mongo_database():
         try:
             mongo_uri = st.secrets["mongo_uri"]
-            db_name = "sal-leads"  # Change if your database name is different
+            db_name = "sal-leads"  # Update if your DB name differs
             client = MongoClient(mongo_uri)
             db = client[db_name]
             for collection_name in db.list_collection_names():
                 db[collection_name].delete_many({})
             client.close()
-            return True
+            st.success("All data in the database has been deleted!")
         except Exception as e:
             st.error(f"Could not flush database: {e}")
-            return False
 
-    if st.button("FLUSH MONGO", key="btn_flush_mongo", use_container_width=True):
-        if flush_mongo_database():
-            st.success("All data in the database has been deleted!")
-        else:
-            st.error("Failed to flush data.")
-
-    # --- REFRESH DATA BUTTON (Optional) ---
-    if st.button("REFRESH DATA (CLEAR CACHE)", key="btn_refresh", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.session_state["selected_month"] = month_options[-1]
-        st.session_state["refresh"] = True
-
-if st.session_state.get("refresh", False):
-    st.session_state["refresh"] = False
-    st.rerun()
+    if st.button("FLUSH MONGO"):
+        flush_mongo_database()
 
 # =========================
 # AUTHENTICATION & CONFIG
