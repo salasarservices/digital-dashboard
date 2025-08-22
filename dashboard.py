@@ -421,7 +421,7 @@ with st.sidebar:
     month_options = get_month_options()
     if "selected_month" not in st.session_state:
         st.session_state["selected_month"] = month_options[-1]
-    sel = st.selectbox('Select report month:', month_options, index=month_options.index(st.session_state["selected_month"]))
+    sel = st.selectbox('Select Report Month:', month_options, index=month_options.index(st.session_state["selected_month"]))
     if sel != st.session_state["selected_month"]:
         st.session_state["selected_month"] = sel
 
