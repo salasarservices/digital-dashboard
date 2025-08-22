@@ -471,267 +471,7 @@ if section == "WEBSITE ANALYTICS":
     # --- WEBSITE ANALYTICS SECTION ---
     # Website Performance, Top Content, Website Analytics, New vs Returning Users, Tables
     st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
-    # ... all code for Website Performance, Top Content, Website Analytics, New vs Returning Users, and tables ...
-    # (Paste your full original website analytics code blocks here.)
-    # [PDF generation button can remain here if you want it always available.]
-
-elif section == "LEADS DASHBOARD":
-    # --- LEADS DASHBOARD SECTION ---
-    st.markdown("## Leads Dashboard")
-    # ... all code for Leads Dashboard section (dashboard circles, table, etc) ...
-    # (Paste your full original leads dashboard code blocks here.)
-
-elif section == "FACEBOOK ANALYTICS":
-    # --- FACEBOOK ANALYTICS SECTION ---
-    st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
-    # ... all code for Facebook Analytics section (metrics, tables, etc) ...
-    # (Paste your full original facebook analytics code blocks here.)
-
-elif section == "YOUTUBE ANALYTICS":
-    # --- YOUTUBE ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
-    # ... all code for YouTube Analytics (overview metrics, top videos, traffic sources, trends, etc) ...
-    # (Paste your full original youtube analytics code blocks here.)
-
-elif section == "LINKEDIN ANALYTICS":
-    # --- LINKEDIN ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
-    # ... all code for LinkedIn Analytics section ...
-    # (Paste your full original linkedin analytics code blocks here.)
-
-elif section == "INSTAGRAM ANALYTICS":
-    # --- INSTAGRAM ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">Instagram Analytics</div>', unsafe_allow_html=True)
-    # ... all code for Instagram Analytics section ...
-    # (Paste your full original instagram analytics code blocks here.)
-
-# =========================
-# AUTHENTICATION & CONFIG
-# =========================
-SCOPES = [
-    'https://www.googleapis.com/auth/analytics.readonly',
-    'https://www.googleapis.com/auth/webmasters.readonly'
-]
-PROPERTY_ID = '356205245'
-SC_SITE_URL = 'https://www.salasarservices.com/'
-
-# --- Loader for credentials setup ---
-credentials_placeholder = st.empty()
-show_loader(credentials_placeholder, "Authenticating and initializing analytics APIs...")
-creds = get_credentials()
-ga4 = BetaAnalyticsDataClient(credentials=creds)
-sc = build('searchconsole', 'v1', credentials=creds)
-credentials_placeholder.empty()
-
-# --- Loader for all metric data ---
-metrics_placeholder = st.empty()
-show_loader(metrics_placeholder, "Fetching dashboard data...")
-
-# (All your data metrics and calculations here.)
-gsc_clicks, gsc_impressions, gsc_ctr = get_gsc_site_stats(SC_SITE_URL, sd, ed)
-gsc_clicks_prev, gsc_impressions_prev, gsc_ctr_prev = get_gsc_site_stats(SC_SITE_URL, psd, ped)
-gsc_clicks_delta = pct_change(gsc_clicks, gsc_clicks_prev)
-gsc_impr_delta = pct_change(gsc_impressions, gsc_impressions_prev)
-gsc_ctr_delta = pct_change(gsc_ctr, gsc_ctr_prev)
-
-perf_circles = [
-    {
-        "title": "Total Website Clicks",
-        "value": gsc_clicks,
-        "delta": gsc_clicks_delta,
-        "color": "#e67e22",
-    },
-    {
-        "title": "Total Impressions",
-        "value": gsc_impressions,
-        "delta": gsc_impr_delta,
-        "color": "#3498db",
-    },
-    {
-        "title": "Average CTR",
-        "value": gsc_ctr * 100,
-        "delta": gsc_ctr_delta,
-        "color": "#16a085",
-    }
-]
-time.sleep(1.2)
-metrics_placeholder.empty()
-
-def get_gsc_pages_clicks(site, sd, ed, limit=5):
-    try:
-        body = {
-            "startDate": sd.strftime('%Y-%m-%d'),
-            "endDate": ed.strftime('%Y-%m-%d'),
-            "dimensions": ["page"],
-            "rowLimit": limit
-        }
-        resp = sc.searchanalytics().query(siteUrl=site, body=body).execute()
-        rows = resp.get("rows", [])
-        return [{"page": r["keys"][0], "clicks": r.get("clicks", 0)} for r in rows]
-    except Exception as e:
-        st.error(f"Error fetching top content from Search Console: {e}")
-        return []
-
-top_pages_now = get_gsc_pages_clicks(SC_SITE_URL, sd, ed, limit=5)
-top_pages_prev = get_gsc_pages_clicks(SC_SITE_URL, psd, ped, limit=20)
-prev_clicks_dict = {p["page"]: p["clicks"] for p in top_pages_prev}
-top_content_data = []
-for entry in top_pages_now:
-    page = entry["page"]
-    clicks = entry["clicks"]
-    prev_clicks = prev_clicks_dict.get(page, 0)
-    diff_pct = 0 if prev_clicks == 0 else ((clicks - prev_clicks) / prev_clicks * 100)
-    top_content_data.append({
-        "Page": page,
-        "Clicks": clicks,
-        "Change (%)": f"{diff_pct:+.2f}"
-    })
-
-cur = get_total_users(PROPERTY_ID, sd, ed)
-prev = get_total_users(PROPERTY_ID, psd, ped)
-delta = pct_change(cur, prev)
-traf = get_traffic(PROPERTY_ID, sd, ed)
-total = sum(item['sessions'] for item in traf)
-prev_total = sum(item['sessions'] for item in get_traffic(PROPERTY_ID, psd, ped))
-delta2 = pct_change(total, prev_total)
-sc_data = get_search_console(SC_SITE_URL, sd, ed)
-clicks = sum(r.get('clicks',0) for r in sc_data)
-prev_clicks = sum(r.get('clicks',0) for r in get_search_console(SC_SITE_URL, psd, ped))
-delta3 = pct_change(clicks, prev_clicks)
-country_data = get_active_users_by_country(PROPERTY_ID, sd, ed)
-traf_df = pd.DataFrame(traf).head(5)
-sc_df = pd.DataFrame([{'page': r['keys'][0], 'query': r['keys'][1], 'clicks': r.get('clicks', 0)} for r in sc_data]).head(10)
-
-# NEW: New vs Returning Users (data collection)
-total_users, new_users, returning_users = get_new_returning_users(PROPERTY_ID, sd, ed)
-total_users_prev, new_users_prev, returning_users_prev = get_new_returning_users(PROPERTY_ID, psd, ped)
-delta_new = pct_change(new_users, new_users_prev)
-delta_returning = pct_change(returning_users, returning_users_prev)
-
-returning_new_users_circles = [
-    {
-        "title": "New Users",
-        "value": new_users,
-        "delta": delta_new,
-        "color": "#e67e22",
-    },
-    {
-        "title": "Returning Users",
-        "value": returning_users,
-        "delta": delta_returning,
-        "color": "#3498db",
-    }
-]
-returning_new_tooltips = [
-    "Number of users who visited your website for the first time during the period.",
-    "Number of users who returned to your website (not their first visit) during the period.",
-]
-
-# =========================
-# PDF GENERATION LOGIC (unchanged)
-# =========================
-def generate_pdf_report():
-    pdf = FPDF()
-    pdf.add_page()
-    logo_url = "https://www.salasarservices.com/assets/Frontend/images/logo-black.png"
-    try:
-        logo_bytes = requests.get(logo_url, timeout=5).content
-        logo_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
-        logo_path = "logo_temp.png"
-        logo_img.save(logo_path)
-        pdf.image(logo_path, x=10, y=8, w=50)
-    except Exception:
-        pass
-
-    pdf.set_xy(65, 15)
-    pdf.set_font("Arial", 'B', 17)
-    pdf.set_text_color(45, 68, 141)
-    pdf.cell(0, 12, "Salasar Services Digital Marketing Reporting Dashboard", ln=1)
-
-    pdf.set_font("Arial", '', 12)
-    pdf.set_text_color(0,0,0)
-    pdf.ln(8)
-    pdf.cell(0, 10, f"Reporting Period: {format_month_year(sd)} | Previous: {format_month_year(psd)}", ln=1)
-
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(45, 68, 141)
-    pdf.cell(0, 12, "Website Performance", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.set_text_color(0,0,0)
-    for metric in perf_circles:
-        val = f"{metric['value']:.2f}" if metric["title"]=="Average CTR" else str(metric['value'])
-        pdf.cell(0, 10, f"{metric['title']}: {val} ({metric['delta']:+.2f} % from previous month)", ln=1)
-    pdf.ln(2)
-
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(45, 68, 141)
-    pdf.cell(0, 10, "Top Content", ln=1)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(110, 8, "Page", border=1)
-    pdf.cell(30, 8, "Clicks", border=1)
-    pdf.cell(35, 8, "Change (%)", border=1, ln=1)
-    pdf.set_font("Arial", '', 12)
-    for row in top_content_data:
-        pdf.cell(110, 8, row['Page'][:65], border=1)
-        pdf.cell(30, 8, str(row['Clicks']), border=1)
-        pdf.cell(35, 8, row['Change (%)'], border=1, ln=1)
-    pdf.ln(4)
-
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(45, 68, 141)
-    pdf.cell(0, 10, "Website Analytics", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(60, 8, f"Total Users: {cur} ({delta:+.2f}%)", ln=1)
-    pdf.cell(60, 8, f"Sessions: {total} ({delta2:+.2f}%)", ln=1)
-    pdf.cell(60, 8, f"Organic Clicks: {clicks} ({delta3:+.2f}%)", ln=1)
-    pdf.ln(1)
-
-    # New vs Returning Users for PDF
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 9, "New vs Returning Users", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(60, 8, f"New Users: {new_users} ({delta_new:+.2f}%)", ln=1)
-    pdf.cell(60, 8, f"Returning Users: {returning_users} ({delta_returning:+.2f}%)", ln=1)
-    pdf.ln(1)
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 9, "Active Users by Country (Top 5)", ln=1)
-    pdf.set_font("Arial", '', 12)
-    for c in country_data:
-        pdf.cell(0, 7, f"{c['country']}: {c['activeUsers']}", ln=1)
-    pdf.ln(1)
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 9, "Traffic Acquisition by Channel", ln=1)
-    pdf.set_font("Arial", '', 12)
-    for idx,row in traf_df.iterrows():
-        pdf.cell(0, 7, f"{row['channel']}: {row['sessions']}", ln=1)
-    pdf.ln(1)
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 9, "Top 10 Organic Queries", ln=1)
-    pdf.set_font("Arial", '', 12)
-    for idx,row in sc_df.iterrows():
-        pdf.cell(0, 7, f"{row['query']} ({row['clicks']} clicks)", ln=1)
-    pdf.ln(2)
-
-    pdf.set_y(-25)
-    pdf.set_font("Arial", 'I', 8)
-    pdf.set_text_color(150,150,150)
-    pdf.cell(0, 10, "Generated by Salasar Services Digital Marketing Reporting Dashboard", 0, 0, 'C')
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
-    return io.BytesIO(pdf_bytes)
-
-if pdf_report_btn:
-    pdf_bytes = generate_pdf_report()
-    st.sidebar.download_button(
-        label="Download PDF",
-        data=pdf_bytes,
-        file_name=f"Salasar-Services-Report-{date.today()}.pdf",
-        mime="application/pdf"
-    )
-
-# =========================
+    # =========================
 # WEBSITE PERFORMANCE SECTION
 # =========================
 st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
@@ -929,7 +669,10 @@ with col2:
     st.subheader('Traffic Acquisition by Channel')
     render_table(traf_df)
 
-# =========================
+elif section == "LEADS DASHBOARD":
+    # --- LEADS DASHBOARD SECTION ---
+    st.markdown("## Leads Dashboard")
+    # =========================
 # LEADS SECTION
 # =========================
 
@@ -1236,7 +979,11 @@ if not df.empty:
 else:
     st.info("No leads data found in MongoDB.")
 
-# =========================
+
+elif section == "FACEBOOK ANALYTICS":
+    # --- FACEBOOK ANALYTICS SECTION ---
+    st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
+    # =========================
 # FACEBOOK ANALYTICS
 # =========================
 
@@ -1429,7 +1176,11 @@ else:
     st.info("No posts published this month.")
 st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
 
-# =========================
+
+elif section == "YOUTUBE ANALYTICS":
+    # --- YOUTUBE ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
+    # =========================
 # YOUTUBE ANALYTICS
 # =========================
 
@@ -1764,5 +1515,244 @@ else:
     st.info("No trend data available.")
 
 st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
+
+
+elif section == "LINKEDIN ANALYTICS":
+    # --- LINKEDIN ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
+    # ... all code for LinkedIn Analytics section ...
+    # (Paste your full original linkedin analytics code blocks here.)
+
+elif section == "INSTAGRAM ANALYTICS":
+    # --- INSTAGRAM ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">Instagram Analytics</div>', unsafe_allow_html=True)
+    # ... all code for Instagram Analytics section ...
+    # (Paste your full original instagram analytics code blocks here.)
+
+# =========================
+# AUTHENTICATION & CONFIG
+# =========================
+SCOPES = [
+    'https://www.googleapis.com/auth/analytics.readonly',
+    'https://www.googleapis.com/auth/webmasters.readonly'
+]
+PROPERTY_ID = '356205245'
+SC_SITE_URL = 'https://www.salasarservices.com/'
+
+# --- Loader for credentials setup ---
+credentials_placeholder = st.empty()
+show_loader(credentials_placeholder, "Authenticating and initializing analytics APIs...")
+creds = get_credentials()
+ga4 = BetaAnalyticsDataClient(credentials=creds)
+sc = build('searchconsole', 'v1', credentials=creds)
+credentials_placeholder.empty()
+
+# --- Loader for all metric data ---
+metrics_placeholder = st.empty()
+show_loader(metrics_placeholder, "Fetching dashboard data...")
+
+# (All your data metrics and calculations here.)
+gsc_clicks, gsc_impressions, gsc_ctr = get_gsc_site_stats(SC_SITE_URL, sd, ed)
+gsc_clicks_prev, gsc_impressions_prev, gsc_ctr_prev = get_gsc_site_stats(SC_SITE_URL, psd, ped)
+gsc_clicks_delta = pct_change(gsc_clicks, gsc_clicks_prev)
+gsc_impr_delta = pct_change(gsc_impressions, gsc_impressions_prev)
+gsc_ctr_delta = pct_change(gsc_ctr, gsc_ctr_prev)
+
+perf_circles = [
+    {
+        "title": "Total Website Clicks",
+        "value": gsc_clicks,
+        "delta": gsc_clicks_delta,
+        "color": "#e67e22",
+    },
+    {
+        "title": "Total Impressions",
+        "value": gsc_impressions,
+        "delta": gsc_impr_delta,
+        "color": "#3498db",
+    },
+    {
+        "title": "Average CTR",
+        "value": gsc_ctr * 100,
+        "delta": gsc_ctr_delta,
+        "color": "#16a085",
+    }
+]
+time.sleep(1.2)
+metrics_placeholder.empty()
+
+def get_gsc_pages_clicks(site, sd, ed, limit=5):
+    try:
+        body = {
+            "startDate": sd.strftime('%Y-%m-%d'),
+            "endDate": ed.strftime('%Y-%m-%d'),
+            "dimensions": ["page"],
+            "rowLimit": limit
+        }
+        resp = sc.searchanalytics().query(siteUrl=site, body=body).execute()
+        rows = resp.get("rows", [])
+        return [{"page": r["keys"][0], "clicks": r.get("clicks", 0)} for r in rows]
+    except Exception as e:
+        st.error(f"Error fetching top content from Search Console: {e}")
+        return []
+
+top_pages_now = get_gsc_pages_clicks(SC_SITE_URL, sd, ed, limit=5)
+top_pages_prev = get_gsc_pages_clicks(SC_SITE_URL, psd, ped, limit=20)
+prev_clicks_dict = {p["page"]: p["clicks"] for p in top_pages_prev}
+top_content_data = []
+for entry in top_pages_now:
+    page = entry["page"]
+    clicks = entry["clicks"]
+    prev_clicks = prev_clicks_dict.get(page, 0)
+    diff_pct = 0 if prev_clicks == 0 else ((clicks - prev_clicks) / prev_clicks * 100)
+    top_content_data.append({
+        "Page": page,
+        "Clicks": clicks,
+        "Change (%)": f"{diff_pct:+.2f}"
+    })
+
+cur = get_total_users(PROPERTY_ID, sd, ed)
+prev = get_total_users(PROPERTY_ID, psd, ped)
+delta = pct_change(cur, prev)
+traf = get_traffic(PROPERTY_ID, sd, ed)
+total = sum(item['sessions'] for item in traf)
+prev_total = sum(item['sessions'] for item in get_traffic(PROPERTY_ID, psd, ped))
+delta2 = pct_change(total, prev_total)
+sc_data = get_search_console(SC_SITE_URL, sd, ed)
+clicks = sum(r.get('clicks',0) for r in sc_data)
+prev_clicks = sum(r.get('clicks',0) for r in get_search_console(SC_SITE_URL, psd, ped))
+delta3 = pct_change(clicks, prev_clicks)
+country_data = get_active_users_by_country(PROPERTY_ID, sd, ed)
+traf_df = pd.DataFrame(traf).head(5)
+sc_df = pd.DataFrame([{'page': r['keys'][0], 'query': r['keys'][1], 'clicks': r.get('clicks', 0)} for r in sc_data]).head(10)
+
+# NEW: New vs Returning Users (data collection)
+total_users, new_users, returning_users = get_new_returning_users(PROPERTY_ID, sd, ed)
+total_users_prev, new_users_prev, returning_users_prev = get_new_returning_users(PROPERTY_ID, psd, ped)
+delta_new = pct_change(new_users, new_users_prev)
+delta_returning = pct_change(returning_users, returning_users_prev)
+
+returning_new_users_circles = [
+    {
+        "title": "New Users",
+        "value": new_users,
+        "delta": delta_new,
+        "color": "#e67e22",
+    },
+    {
+        "title": "Returning Users",
+        "value": returning_users,
+        "delta": delta_returning,
+        "color": "#3498db",
+    }
+]
+returning_new_tooltips = [
+    "Number of users who visited your website for the first time during the period.",
+    "Number of users who returned to your website (not their first visit) during the period.",
+]
+
+# =========================
+# PDF GENERATION LOGIC (unchanged)
+# =========================
+def generate_pdf_report():
+    pdf = FPDF()
+    pdf.add_page()
+    logo_url = "https://www.salasarservices.com/assets/Frontend/images/logo-black.png"
+    try:
+        logo_bytes = requests.get(logo_url, timeout=5).content
+        logo_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
+        logo_path = "logo_temp.png"
+        logo_img.save(logo_path)
+        pdf.image(logo_path, x=10, y=8, w=50)
+    except Exception:
+        pass
+
+    pdf.set_xy(65, 15)
+    pdf.set_font("Arial", 'B', 17)
+    pdf.set_text_color(45, 68, 141)
+    pdf.cell(0, 12, "Salasar Services Digital Marketing Reporting Dashboard", ln=1)
+
+    pdf.set_font("Arial", '', 12)
+    pdf.set_text_color(0,0,0)
+    pdf.ln(8)
+    pdf.cell(0, 10, f"Reporting Period: {format_month_year(sd)} | Previous: {format_month_year(psd)}", ln=1)
+
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(45, 68, 141)
+    pdf.cell(0, 12, "Website Performance", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.set_text_color(0,0,0)
+    for metric in perf_circles:
+        val = f"{metric['value']:.2f}" if metric["title"]=="Average CTR" else str(metric['value'])
+        pdf.cell(0, 10, f"{metric['title']}: {val} ({metric['delta']:+.2f} % from previous month)", ln=1)
+    pdf.ln(2)
+
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(45, 68, 141)
+    pdf.cell(0, 10, "Top Content", ln=1)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(110, 8, "Page", border=1)
+    pdf.cell(30, 8, "Clicks", border=1)
+    pdf.cell(35, 8, "Change (%)", border=1, ln=1)
+    pdf.set_font("Arial", '', 12)
+    for row in top_content_data:
+        pdf.cell(110, 8, row['Page'][:65], border=1)
+        pdf.cell(30, 8, str(row['Clicks']), border=1)
+        pdf.cell(35, 8, row['Change (%)'], border=1, ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(45, 68, 141)
+    pdf.cell(0, 10, "Website Analytics", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(60, 8, f"Total Users: {cur} ({delta:+.2f}%)", ln=1)
+    pdf.cell(60, 8, f"Sessions: {total} ({delta2:+.2f}%)", ln=1)
+    pdf.cell(60, 8, f"Organic Clicks: {clicks} ({delta3:+.2f}%)", ln=1)
+    pdf.ln(1)
+
+    # New vs Returning Users for PDF
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 9, "New vs Returning Users", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(60, 8, f"New Users: {new_users} ({delta_new:+.2f}%)", ln=1)
+    pdf.cell(60, 8, f"Returning Users: {returning_users} ({delta_returning:+.2f}%)", ln=1)
+    pdf.ln(1)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 9, "Active Users by Country (Top 5)", ln=1)
+    pdf.set_font("Arial", '', 12)
+    for c in country_data:
+        pdf.cell(0, 7, f"{c['country']}: {c['activeUsers']}", ln=1)
+    pdf.ln(1)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 9, "Traffic Acquisition by Channel", ln=1)
+    pdf.set_font("Arial", '', 12)
+    for idx,row in traf_df.iterrows():
+        pdf.cell(0, 7, f"{row['channel']}: {row['sessions']}", ln=1)
+    pdf.ln(1)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 9, "Top 10 Organic Queries", ln=1)
+    pdf.set_font("Arial", '', 12)
+    for idx,row in sc_df.iterrows():
+        pdf.cell(0, 7, f"{row['query']} ({row['clicks']} clicks)", ln=1)
+    pdf.ln(2)
+
+    pdf.set_y(-25)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.set_text_color(150,150,150)
+    pdf.cell(0, 10, "Generated by Salasar Services Digital Marketing Reporting Dashboard", 0, 0, 'C')
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    return io.BytesIO(pdf_bytes)
+
+if pdf_report_btn:
+    pdf_bytes = generate_pdf_report()
+    st.sidebar.download_button(
+        label="Download PDF",
+        data=pdf_bytes,
+        file_name=f"Salasar-Services-Report-{date.today()}.pdf",
+        mime="application/pdf"
+    )
 
 # END OF DASHBOARD
