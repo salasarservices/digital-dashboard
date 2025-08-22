@@ -462,6 +462,50 @@ with st.sidebar:
         flush_mongo_database()
 
 # =========================
+# SECTION RENDERING LOGIC (UPDATED)
+# =========================
+
+section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
+
+if section == "WEBSITE ANALYTICS":
+    # --- WEBSITE ANALYTICS SECTION ---
+    # Website Performance, Top Content, Website Analytics, New vs Returning Users, Tables
+    st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
+    # ... all code for Website Performance, Top Content, Website Analytics, New vs Returning Users, and tables ...
+    # (Paste your full original website analytics code blocks here.)
+    # [PDF generation button can remain here if you want it always available.]
+
+elif section == "LEADS DASHBOARD":
+    # --- LEADS DASHBOARD SECTION ---
+    st.markdown("## Leads Dashboard")
+    # ... all code for Leads Dashboard section (dashboard circles, table, etc) ...
+    # (Paste your full original leads dashboard code blocks here.)
+
+elif section == "FACEBOOK ANALYTICS":
+    # --- FACEBOOK ANALYTICS SECTION ---
+    st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
+    # ... all code for Facebook Analytics section (metrics, tables, etc) ...
+    # (Paste your full original facebook analytics code blocks here.)
+
+elif section == "YOUTUBE ANALYTICS":
+    # --- YOUTUBE ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
+    # ... all code for YouTube Analytics (overview metrics, top videos, traffic sources, trends, etc) ...
+    # (Paste your full original youtube analytics code blocks here.)
+
+elif section == "LINKEDIN ANALYTICS":
+    # --- LINKEDIN ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
+    # ... all code for LinkedIn Analytics section ...
+    # (Paste your full original linkedin analytics code blocks here.)
+
+elif section == "INSTAGRAM ANALYTICS":
+    # --- INSTAGRAM ANALYTICS SECTION ---
+    st.markdown('<div class="section-header">Instagram Analytics</div>', unsafe_allow_html=True)
+    # ... all code for Instagram Analytics section ...
+    # (Paste your full original instagram analytics code blocks here.)
+
+# =========================
 # AUTHENTICATION & CONFIG
 # =========================
 SCOPES = [
