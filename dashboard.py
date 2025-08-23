@@ -1826,22 +1826,5 @@ else:
 st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
 
 # END OF DASHBOARD
-from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Required scopes for YouTube Data and Analytics APIs
-SCOPES = [
-    "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/yt-analytics.readonly"
-]
-
-# Run the OAuth2 flow, will open a browser for consent
-flow = InstalledAppFlow.from_client_secrets_file(
-    'client_secret.json', SCOPES
-)
-creds = flow.run_local_server(port=0)
-
-print("Access token:", creds.token)
-print("Refresh token:", creds.refresh_token)
-print("Client ID:", creds.client_id)
-print("Client Secret:", creds.client_secret)
 
