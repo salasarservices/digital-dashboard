@@ -1472,24 +1472,6 @@ def render_youtube_analytics():
         st.info("No trend data available.")
 
     st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
-# =========================
-# LINKEDIN DASHBOARD
-# =========================
-elif section == "LINKEDIN ANALYTICS":
-    st.write("LinkedIn Analytics")
-    # --- LINKEDIN ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
-    # ... all code for LinkedIn Analytics section ...
-    # (Paste your full original linkedin analytics code blocks here.)
-# =========================
-# INSTAGRAM DASHBOARD
-# =========================
-elif section == "INSTAGRAM ANALYTICS":
-    st.write("Instagram Analytics")
-    # --- INSTAGRAM ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">Instagram Analytics</div>', unsafe_allow_html=True)
-    # ... all code for Instagram Analytics section ...
-    # (Paste your full original instagram analytics code blocks here.)
 
 # =========================
 # AUTHENTICATION & CONFIG
