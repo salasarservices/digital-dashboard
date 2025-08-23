@@ -6,6 +6,7 @@ from google.auth.transport.requests import Request as GAuthRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
+import streamlit_authenticator as stauth
 import pandas as pd
 import time
 import io
@@ -13,9 +14,11 @@ from fpdf import FPDF
 import requests
 from PIL import Image
 import pycountry
+import plotly.express as px
 import json
 from pymongo import MongoClient
 from streamlit_js_eval import streamlit_js_eval
+import numpy as np
 
 # --- Loader CSS and helper ---
 st.markdown("""
