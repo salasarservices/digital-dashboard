@@ -464,12 +464,9 @@ with st.sidebar:
 # =========================
 # SECTION RENDERING LOGIC (UPDATED)
 # =========================
-
-section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
-
 if section == "WEBSITE ANALYTICS":
-    # --- WEBSITE ANALYTICS SECTION ---
-    # Website Performance, Top Content, Website Analytics, New vs Returning Users, Tables
+    st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
+section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
 # =========================
 # WEBSITE PERFORMANCE SECTION
 # =========================
