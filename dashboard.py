@@ -1488,9 +1488,8 @@ st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are 
 
 
 # =========================
-# YOUTUBE API CONFIGURATION
+# YOUTUBE ANALYTICS
 # =========================
-
 def get_access_token(client_id, client_secret, refresh_token):
     """Dynamically fetches an access token using your refresh_token."""
     if not refresh_token or refresh_token == "YOUR_REFRESH_TOKEN":
@@ -1517,12 +1516,12 @@ def get_auth_headers(access_token):
     return {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
 
 def get_date_ranges():
-    """Gets start and end dates for current and previous period (monthly granularity)."""
+    """Gets start and end dates for current and previous period (last 28 days granularity)."""
     today = date.today()
-    start_cur = today.replace(day=1)
     end_cur = today
-    start_prev = (start_cur - timedelta(days=1)).replace(day=1)
+    start_cur = today - timedelta(days=27)
     end_prev = start_cur - timedelta(days=1)
+    start_prev = end_prev - timedelta(days=27)
     return start_cur, end_cur, start_prev, end_prev
 
 # Read credentials from Streamlit secrets
@@ -1530,120 +1529,165 @@ client_id = st.secrets["youtube"].get("client_id", "YOUR_CLIENT_ID")
 client_secret = st.secrets["youtube"].get("client_secret", "YOUR_CLIENT_SECRET")
 refresh_token = st.secrets["youtube"].get("refresh_token", "YOUR_REFRESH_TOKEN")
 
-ACCESS_TOKEN = get_access_token(client_id, client_secret, refresh_token)
+# Obtain access token dynamically
+YT_ACCESS_TOKEN = get_access_token(client_id, client_secret, refresh_token)
 
-# =========================
-# 1. CHANNEL OVERVIEW METRICS
-# =========================
-def get_channel_stats():
-    # Get channel statistics (subscribers, total views, video count)
-    url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={CHANNEL_ID}&key={YOUTUBE_API_KEY}"
-    resp = requests.get(url).json()
-    stats = resp["items"][0]["statistics"]
-    return {
-        "subs": int(stats.get("subscriberCount", 0)),
-        "views": int(stats.get("viewCount", 0)),
-        "video_count": int(stats.get("videoCount", 0)),
-    }
+YOUTUBE_API_KEY = st.secrets["youtube"].get("api_key", "YOUR_API_KEY")
+CHANNEL_ID = st.secrets["youtube"].get("channel_id", "YOUR_CHANNEL_ID")
 
-def get_yt_analytics_overview(start_date, end_date):
-    # Get watch time and views for the given period using YouTube Analytics API
+def get_yt_analytics_summary(start_date, end_date):
     endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
     params = {
-        "ids": "channel==MINE",
+        "ids": f"channel=={CHANNEL_ID}",
         "startDate": start_date.strftime("%Y-%m-%d"),
         "endDate": end_date.strftime("%Y-%m-%d"),
         "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
-        "dimensions": "day",
+        "dimensions": "",
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
-    # Aggregate totals
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
     if "rows" not in resp:
         return {"views": 0, "watch_time": 0, "subs_gained": 0, "subs_lost": 0}
-    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
-    totals = {
-        "views": int(df["views"].sum()),
-        "watch_time": int(df["estimatedMinutesWatched"].sum()),
-        "subs_gained": int(df["subscribersGained"].sum()),
-        "subs_lost": int(df["subscribersLost"].sum()),
+    row = resp["rows"][0]
+    col_map = {c["name"]: i for i, c in enumerate(resp["columnHeaders"])}
+    return {
+        "views": int(row[col_map["views"]]),
+        "watch_time": int(row[col_map["estimatedMinutesWatched"]]),
+        "subs_gained": int(row[col_map["subscribersGained"]]),
+        "subs_lost": int(row[col_map["subscribersLost"]]),
     }
-    return totals
 
-def get_delta(current, previous):
-    return (current - previous) / previous * 100 if previous else 0
+def get_total_subscribers():
+    url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={CHANNEL_ID}&key={YOUTUBE_API_KEY}"
+    resp = requests.get(url).json()
+    if "items" in resp and len(resp["items"]) > 0:
+        return int(resp["items"][0]["statistics"].get("subscriberCount", 0))
+    return 0
 
-# Fetch date ranges for analytics
+def get_new_subs_text(subs_gained, subs_lost):
+    net = subs_gained - subs_lost
+    if net > 0:
+        color = "#2ecc40"  # green
+        sign = "+"
+        text = f"<span style='color:{color}; font-weight:bold;'>{sign}{net} new</span>"
+    elif net < 0:
+        color = "#ff4136"  # red
+        sign = "-"
+        text = f"<span style='color:{color}; font-weight:bold;'>{sign}{abs(net)} unsubscribed</span>"
+    else:
+        color = "#888"
+        text = f"<span style='color:{color}; font-weight:bold;'>0 (no change)</span>"
+    return text
+
 start_cur, end_cur, start_prev, end_prev = get_date_ranges()
+overview_cur = get_yt_analytics_summary(start_cur, end_cur)
+overview_prev = get_yt_analytics_summary(start_prev, end_prev)
+total_subscribers = get_total_subscribers()
 
-# Fetch current and previous period analytics
-overview_cur = get_yt_analytics_overview(start_cur, end_cur)
-overview_prev = get_yt_analytics_overview(start_prev, end_prev)
-channel_stats = get_channel_stats()
+st.markdown("""
+<style>
+.section-header {
+    font-size: 2.1em !important;
+    font-weight: bold !important;
+    color: #2d448d !important;
+    margin-bottom: 0.5em;
+}
+.yt-metric-circle {
+    transition: transform 0.18s cubic-bezier(.4,2,.55,.44);
+    cursor: pointer;
+}
+.yt-metric-circle:hover {
+    transform: scale(1.13);
+    box-shadow: 0 6px 20px rgba(44,68,141,0.18);
+}
+</style>
+""", unsafe_allow_html=True)
 
-# Compute deltas
-subs_delta = get_delta(overview_cur["subs_gained"] - overview_cur["subs_lost"],
-                       overview_prev["subs_gained"] - overview_prev["subs_lost"])
-views_delta = get_delta(overview_cur["views"], overview_prev["views"])
-watch_delta = get_delta(overview_cur["watch_time"], overview_prev["watch_time"])
-
-# =========================
-# DESIGN: CHANNEL OVERVIEW ROW
-# =========================
 st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
 overview_cols = st.columns(3)
+
+subs_gained = overview_cur["subs_gained"]
+subs_lost = overview_cur["subs_lost"]
+net_new = subs_gained - subs_lost
+
+subs_text = get_new_subs_text(subs_gained, subs_lost)
+
+def get_delta_text(current, previous):
+    delta = current - previous
+    if previous == 0:
+        percent = 0
+    else:
+        percent = delta / previous * 100
+    if delta > 0:
+        color = "#2ecc40"  # green
+        sign = "+"
+        text = f"<span style='color:{color}; font-weight:bold;'>{sign}{delta} ({percent:.1f}%)</span>"
+    elif delta < 0:
+        color = "#ff4136"  # red
+        sign = "-"
+        text = f"<span style='color:{color}; font-weight:bold;'>{sign}{abs(delta)} ({percent:.1f}%)</span>"
+    else:
+        color = "#888"
+        text = f"<span style='color:{color}; font-weight:bold;'>0</span>"
+    return text
+
+subs_current_net = overview_cur["subs_gained"] - overview_cur["subs_lost"]
+subs_prev_net = overview_prev["subs_gained"] - overview_prev["subs_lost"]
+views_delta = overview_cur["views"] - overview_prev["views"]
+watch_delta = overview_cur["watch_time"] - overview_prev["watch_time"]
+
 overview_metrics = [
     {
         "label": "Subscribers (Net)",
-        "value": overview_cur["subs_gained"] - overview_cur["subs_lost"],
-        "delta": subs_delta,
-        "color": "#e67e22"
+        "value": total_subscribers,
+        "subs_text": get_new_subs_text(overview_cur["subs_gained"], overview_cur["subs_lost"]),
+        "delta_text": "",
+        "color": "#ffe1c8",
+        "circle_color": "#e67e22",
     },
     {
         "label": "Total Views",
         "value": overview_cur["views"],
-        "delta": views_delta,
-        "color": "#3498db"
+        "subs_text": "",
+        "delta_text": get_delta_text(overview_cur["views"], overview_prev["views"]),
+        "color": "#c8e6fa",
+        "circle_color": "#3498db",
     },
     {
         "label": "Watch Time (min)",
         "value": overview_cur["watch_time"],
-        "delta": watch_delta,
-        "color": "#16a085"
+        "subs_text": "",
+        "delta_text": get_delta_text(overview_cur["watch_time"], overview_prev["watch_time"]),
+        "color": "#a7f1df",
+        "circle_color": "#16a085",
     },
 ]
+
 for i, col in enumerate(overview_cols):
     metric = overview_metrics[i]
-    delta_sym = "↑" if metric["delta"] >= 0 else "↓"
-    delta_col = "#2ecc40" if metric["delta"] >= 0 else "#ff4136"
     with col:
         st.markdown(
             f"""
-            <div style='text-align:center; font-weight:500; font-size:21px; margin-bottom:0.2em'>
+            <div style='text-align:center; font-weight:500; font-size:23px; margin-bottom:0.2em; color:#2d448d'>
                 {metric["label"]}
             </div>
-            <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:80px;'>
-                <div style='background:{metric["color"]}; border-radius:50%; width:70px; height:70px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.10);'>
-                    <span style='color:white; font-size:1.2em; font-family: Fira Code, monospace; font-weight:500;'>{metric["value"]}</span>
+            <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
+                <div class="yt-metric-circle" style='background:{metric["color"]}; border-radius:50%; width:100px; height:100px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.12);'>
+                    <span style='color:{metric["circle_color"]}; font-size:2em; font-family: Fira Code, monospace; font-weight:bold;'>{metric["value"]}</span>
                 </div>
             </div>
-            <div style='text-align:center; font-size:15px; margin-top:0.3em; color:{delta_col}; font-weight:500'>
-                {delta_sym} {abs(metric["delta"]):.2f}% <span style='color:#666;'>(vs previous month)</span>
+            <div style='text-align:center; font-size:16px; margin-top:0.3em; min-height:1.5em;'>
+                {metric["subs_text"] if metric["subs_text"] else metric["delta_text"]}
             </div>
             """,
             unsafe_allow_html=True
         )
 
-# =========================
-# 2. TOP 5 VIDEOS SECTION
-# =========================
 def get_top_videos(start_date, end_date, max_results=5):
-    # Get videos uploaded by the channel
     video_url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={CHANNEL_ID}&part=id&order=date&type=video&maxResults=50"
     resp = requests.get(video_url).json()
     video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
     if not video_ids:
         return pd.DataFrame()
-    # Get video stats for each video
     stats_url = f"https://www.googleapis.com/youtube/v3/videos?key={YOUTUBE_API_KEY}&id={','.join(video_ids)}&part=snippet,statistics"
     stats_resp = requests.get(stats_url).json()
     data = []
@@ -1654,10 +1698,15 @@ def get_top_videos(start_date, end_date, max_results=5):
         views = int(item["statistics"].get("viewCount", 0))
         likes = int(item["statistics"].get("likeCount", 0))
         comments = int(item["statistics"].get("commentCount", 0))
-        data.append({"id": vid_id, "title": title, "published": published, "views": views, "likes": likes, "comments": comments})
-    # Sort by views in the given period
+        data.append({
+            "id": vid_id,
+            "title": title,
+            "published": published,
+            "views": views,
+            "likes": likes,
+            "comments": comments
+        })
     df = pd.DataFrame(data).sort_values("views", ascending=False).head(max_results)
-    # Add watch time for each video via Analytics API
     ids = list(df["id"])
     if not ids:
         return df
@@ -1670,7 +1719,7 @@ def get_top_videos(start_date, end_date, max_results=5):
         "dimensions": "video",
         "filters": f"video=={','.join(ids)}"
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
     if "rows" not in resp:
         df["watch_time"] = 0
     else:
@@ -1678,12 +1727,8 @@ def get_top_videos(start_date, end_date, max_results=5):
         df["watch_time"] = df["id"].map(wt_dict).fillna(0)
     return df
 
-# Fetch top 5 videos for current period
 top_videos_df = get_top_videos(start_cur, end_cur, max_results=5)
 
-# =========================
-# DESIGN: TOP 5 VIDEOS ROW
-# =========================
 st.markdown('<div class="section-header">Top 5 Videos (Current Period)</div>', unsafe_allow_html=True)
 if not top_videos_df.empty:
     st.markdown("""
@@ -1694,15 +1739,20 @@ if not top_videos_df.empty:
     .yt-table tr:nth-child(odd) {background: #fff;}
     </style>
     """, unsafe_allow_html=True)
+    
     display_df = top_videos_df[["title", "views", "watch_time", "likes", "comments"]].copy()
     display_df.columns = ["Title", "Views", "Watch Time (min)", "Likes", "Comments"]
-    st.markdown(display_df.to_html(index=False, classes="yt-table"), unsafe_allow_html=True)
+    display_df["Title"] = [
+        f'<a href="https://www.youtube.com/watch?v={vid_id}" target="_blank">{title}</a>'
+        for title, vid_id in zip(display_df["Title"], top_videos_df["id"])
+    ]
+    st.markdown(
+        display_df.to_html(escape=False, index=False, classes="yt-table"),
+        unsafe_allow_html=True
+    )
 else:
     st.info("No video data found for this period.")
 
-# =========================
-# 3. TRAFFIC SOURCES PIE CHART
-# =========================
 def get_traffic_sources(start_date, end_date):
     endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
     params = {
@@ -1712,19 +1762,15 @@ def get_traffic_sources(start_date, end_date):
         "metrics": "views",
         "dimensions": "insightTrafficSourceType",
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
     if "rows" not in resp:
         return pd.DataFrame()
     df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
     df["views"] = df["views"].astype(int)
     return df
 
-# Fetch traffic sources data
 traf_src_df = get_traffic_sources(start_cur, end_cur)
 
-# =========================
-# DESIGN: TRAFFIC SOURCES PIE CHART ROW
-# =========================
 st.markdown('<div class="section-header">Traffic Sources</div>', unsafe_allow_html=True)
 if not traf_src_df.empty:
     pie_fig = px.pie(traf_src_df, values="views", names="insightTrafficSourceType",
@@ -1735,9 +1781,6 @@ if not traf_src_df.empty:
 else:
     st.info("No traffic source data available.")
 
-# =========================
-# 4. TRENDS OVER TIME (LINE CHARTS)
-# =========================
 def get_trends_over_time(start_date, end_date):
     endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
     params = {
@@ -1747,7 +1790,7 @@ def get_trends_over_time(start_date, end_date):
         "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
         "dimensions": "day",
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
     if "rows" not in resp:
         return pd.DataFrame()
     df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
@@ -1757,12 +1800,8 @@ def get_trends_over_time(start_date, end_date):
     df["subs"] = df["subscribersGained"].astype(int) - df["subscribersLost"].astype(int)
     return df
 
-# Fetch trend data for the last 60 days for richer chart
-trend_df = get_trends_over_time(start_cur - datetime.timedelta(days=59), end_cur)
+trend_df = get_trends_over_time(start_cur - timedelta(days=59), end_cur)
 
-# =========================
-# DESIGN: TRENDS OVER TIME ROW
-# =========================
 st.markdown('<div class="section-header">Trends Over Time</div>', unsafe_allow_html=True)
 if not trend_df.empty:
     tr_cols = st.columns(3)
@@ -1781,12 +1820,8 @@ if not trend_df.empty:
 else:
     st.info("No trend data available.")
 
-# =========================
-# FOOTNOTE / DATA UPDATE INFO
-# =========================
 st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
 
-st.caption("All data is pulled live from Instagram Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
 # END OF DASHBOARD
 from google_auth_oauthlib.flow import InstalledAppFlow
 
