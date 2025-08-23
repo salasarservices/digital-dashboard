@@ -6,7 +6,6 @@ from google.auth.transport.requests import Request as GAuthRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-import streamlit_authenticator as stauth
 import pandas as pd
 import time
 import io
@@ -14,11 +13,9 @@ from fpdf import FPDF
 import requests
 from PIL import Image
 import pycountry
-import plotly.express as px
 import json
 from pymongo import MongoClient
 from streamlit_js_eval import streamlit_js_eval
-import numpy as np
 
 # --- Loader CSS and helper ---
 st.markdown("""
@@ -252,6 +249,7 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
 # =========================
 # HELPER AND DATA FUNCTIONS
 # =========================
@@ -402,1076 +400,77 @@ def country_name_to_code(name):
 # SIDEBAR & FILTERS
 # =========================
 with st.sidebar:
-    # Logo at the top
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
-    st.markdown("### SALASAR DIGITAL MARKETING DASHBOARD")
-    
-    # --- FILTERS: Month selection (unchanged logic) ---
+    st.title('Report Filters')
+
+    def get_month_options():
+        months, today, d = [], date.today(), date(2025,1,1)
+        while d <= today:
+            months.append(d)
+            d += relativedelta(months=1)
+        return [m.strftime('%B %Y') for m in months]
+
     month_options = get_month_options()
     if "selected_month" not in st.session_state:
         st.session_state["selected_month"] = month_options[-1]
-    sel = st.selectbox('Select Report Month:', month_options, index=month_options.index(st.session_state["selected_month"]))
+    sel = st.selectbox('Select report month:', month_options, index=month_options.index(st.session_state["selected_month"]))
     if sel != st.session_state["selected_month"]:
         st.session_state["selected_month"] = sel
 
+    def get_month_range(sel):
+        start = datetime.strptime(sel, '%B %Y').date().replace(day=1)
+        end = start + relativedelta(months=1) - timedelta(days=1)
+        prev_end = start - timedelta(days=1)
+        prev_start = prev_end.replace(day=1)
+        return start, end, prev_start, prev_end
+
     sd, ed, psd, ped = get_month_range(st.session_state["selected_month"])
-    st.info(f"**Current period:** {sd.strftime('%B %Y')}\n\n**Previous period:** {psd.strftime('%B %Y')}")
+    st.markdown(
+        f"""
+        <div style="border-left: 4px solid #459fda; background: #f0f7fa; padding: 1em 1.2em; margin-bottom: 1em; border-radius: 6px;">
+            <span style="font-size: 1.1em; color: #2d448d;">
+            <b>Current period:</b> {sd.strftime('%B %Y')}<br>
+            <b>Previous period:</b> {psd.strftime('%B %Y')}
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # --- SIDEBAR BUTTON STATE ---
-    if "sidebar_section" not in st.session_state:
-        st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
+    if st.button("Refresh Data (Clear Cache)"):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.session_state["selected_month"] = month_options[-1]
+        st.session_state["refresh"] = True
 
-    # Main navigation buttons
-    if st.button("WEBSITE ANALYTICS"):
-        st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
-    if st.button("LEADS DASHBOARD"):
-        st.session_state["sidebar_section"] = "LEADS DASHBOARD"
-    if st.button("LINKEDIN ANALYTICS"):
-        st.session_state["sidebar_section"] = "LINKEDIN ANALYTICS"
-    if st.button("FACEBOOK ANALYTICS"):
-        st.session_state["sidebar_section"] = "FACEBOOK ANALYTICS"
-    if st.button("INSTAGRAM ANALYTICS"):
-        st.session_state["sidebar_section"] = "INSTAGRAM ANALYTICS"
-    if st.button("YOUTUBE ANALYTICS"):
-        st.session_state["sidebar_section"] = "YOUTUBE ANALYTICS"
-
-    pdf_report_btn = st.button("DOWNLOAD REPORT")
-
-    # Flush Mongo button and function
+    # --- FLUSH DATABASE FUNCTION ---
     def flush_mongo_database():
         try:
             mongo_uri = st.secrets["mongo_uri"]
-            db_name = "sal-leads"
+            db_name = "sal-leads"  # Change to your actual database name if different
             client = MongoClient(mongo_uri)
             db = client[db_name]
             for collection_name in db.list_collection_names():
                 db[collection_name].delete_many({})
             client.close()
-            st.success("All data in the database has been deleted!")
+            return True
         except Exception as e:
             st.error(f"Could not flush database: {e}")
+            return False
 
-    if st.button("FLUSH MONGO"):
-        flush_mongo_database()
-    # =========================
-    # WEBSITE PERFORMANCE SECTION
-    # =========================
-def render_website_analytics():
-    st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
-    cols_perf = st.columns(3)
-    animation_duration = 0.5
-    perf_tooltips = [
-        "The total number of times users clicked your website's listing in Google Search results during the selected period.",
-        "The total number of times your website appeared in Google Search results (regardless of clicks) for any query.",
-        "The percentage of impressions that resulted in a click (Click-Through Rate) for your website in Google Search results during the selected period."
-    ]
-    for i, col in enumerate(cols_perf):
-        entry = perf_circles[i]
-        with col:
-            st.markdown(
-                f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
-                    {entry["title"]}
-                    <span class='tooltip'>
-                      <span class='questionmark'>?</span>
-                      <span class='tooltiptext'>{perf_tooltips[i]}</span>
-                    </span>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            placeholder = st.empty()
-            steps = 45
-            for n in range(steps + 1):
-                if entry["title"] == "Average CTR":
-                    display_val = f"{entry['value'] * n / steps:.2f}%"
-                else:
-                    display_val = int(entry["value"] * n / steps)
-                placeholder.markdown(
-                    f"""
-                    <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
-                      <div class='animated-circle' style='background:{entry["color"]};'>
-                        <span class='animated-circle-value'>{display_val}</span>
-                      </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                time.sleep(animation_duration / steps)
-            pct_color = "#2ecc40" if entry["delta"] >= 0 else "#ff4136"
-            pct_icon = (
-                "↑" if entry["delta"] >= 0 else "↓"
-            )
-            pct_icon_colored = (
-                f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
-            )
-            pct_delta_text = (
-                f"{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span>"
-            )
-            st.markdown(
-                f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_delta_text}</div>",
-                unsafe_allow_html=True
-            )
-
-    # =========================
-    # TOP CONTENT SECTION
-    # =========================
-    st.markdown('<div class="section-header">Top Content</div>', unsafe_allow_html=True)
-    def render_top_content_table(data):
-        df = pd.DataFrame(data)
-        if not df.empty:
-            df["Clicks"] = df["Clicks"].apply(lambda x: f"<span class='animated-circle-value' style='font-size:1.2em'>{x}</span>")
-            def fmt_change(val):
-                pct = float(val)
-                color = "#2ecc40" if pct >= 0 else "#ff4136"
-                arrow = "↑" if pct >= 0 else "↓"
-                return f"<span class='animated-circle-value' style='color:{color};font-size:1.15em'>{arrow} {pct:+.2f}%</span>"
-            df["Change (%)"] = df["Change (%)"].apply(fmt_change)
-            st.markdown(df.to_html(escape=False, index=False, classes="styled-table"), unsafe_allow_html=True)
+    # Place the flush button RIGHT after the "Refresh Data" button and BEFORE the PDF button!
+    flush_btn = st.button("Flush Mongo 🗑️")
+    if flush_btn:
+        if flush_mongo_database():
+            st.success("All data in the database has been deleted!")
         else:
-            st.warning("No top content data available for this period.")
-    render_top_content_table(top_content_data)
+            st.error("Failed to flush data.")
 
-    # =========================
-    # WEBSITE ANALYTICS SECTION
-    # =========================
-    st.markdown('<div class="section-header">Website Analytics</div>', unsafe_allow_html=True)
-    circle_colors = ["#2d448d", "#a6ce39", "#459fda"]
-    titles = [
-        "Total Users",
-        "Sessions",
-        "Organic Clicks"
-    ]
-    tooltips = [
-        "Number of people who visited your website.",
-        "Total number of visits to your website.",
-        "Times people clicked on your website in Google search."
-    ]
-    values = [cur, total, clicks]
-    deltas = [delta, delta2, delta3]
-    cols = st.columns(3)
-    animation_duration = 0.5
-    for i, col in enumerate(cols):
-        with col:
-            st.markdown(
-                f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
-                    {titles[i]}
-                    <span class='tooltip'>
-                      <span class='questionmark'>?</span>
-                      <span class='tooltiptext'>{tooltips[i]}</span>
-                    </span>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            placeholder = st.empty()
-            steps = 45
-            for n in range(steps + 1):
-                display_val = int(values[i] * n / steps)
-                placeholder.markdown(
-                    f"""
-                    <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
-                      <div class='animated-circle' style='background:{circle_colors[i]};'>
-                        <span class='animated-circle-value'>{display_val}</span>
-                      </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                time.sleep(animation_duration / steps)
-            pct_color = "#2ecc40" if deltas[i] >= 0 else "#ff4136"
-            pct_icon = (
-                "↑" if deltas[i] >= 0 else "↓"
-            )
-            pct_icon_colored = (
-                f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
-            )
-            st.markdown(
-                f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(deltas[i]):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
-                unsafe_allow_html=True
-            )
+    pdf_report_btn = st.button("Download PDF Report")
 
-    # =========================
-    # NEW VS RETURNING USERS SECTION
-    # =========================
-    st.markdown('<div class="section-header">New vs Returning Users</div>', unsafe_allow_html=True)
-    cols_ret = st.columns(2)
-    animation_duration = 0.5
-    for i, col in enumerate(cols_ret):
-        entry = returning_new_users_circles[i]
-        with col:
-            st.markdown(
-                f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
-                    {entry["title"]}
-                    <span class='tooltip'>
-                      <span class='questionmark'>?</span>
-                      <span class='tooltiptext'>{returning_new_tooltips[i]}</span>
-                    </span>
-                </div>""",
-                unsafe_allow_html=True
-            )
-            placeholder = st.empty()
-            steps = 45
-            for n in range(steps + 1):
-                display_val = int(entry["value"] * n / steps)
-                placeholder.markdown(
-                    f"""
-                    <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
-                      <div class='animated-circle' style='background:{entry["color"]};'>
-                        <span class='animated-circle-value'>{display_val}</span>
-                      </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                time.sleep(animation_duration / steps)
-            pct_color = "#2ecc40" if entry["delta"] >= 0 else "#ff4136"
-            pct_icon = "↑" if entry["delta"] >= 0 else "↓"
-            pct_icon_colored = (
-                f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
-            )
-            st.markdown(
-                f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
-                unsafe_allow_html=True
-            )
-
-    # --- Two side-by-side tables ---
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader('Active Users by Country (Top 5)')
-        country_df = pd.DataFrame(country_data)
-        def flag_html(row):
-            code = country_name_to_code(row['country'])
-            flag_url = f"https://flagcdn.com/16x12/{code}.png" if code else ""
-            flag_img = f'<img src="{flag_url}" style="height:12px;margin-right:7px;vertical-align:middle;">' if code else ""
-            return f"{flag_img}{row['country']}"
-        country_df['Country'] = country_df.apply(flag_html, axis=1)
-        country_df = country_df[['Country', 'activeUsers']]
-        country_df.rename(columns={'activeUsers': 'Active Users'}, inplace=True)
-        st.markdown(country_df.to_html(escape=False, index=False, classes='styled-table'), unsafe_allow_html=True)
-
-    with col2:
-        st.subheader('Traffic Acquisition by Channel')
-        render_table(traf_df)
-
-# =========================
-# LEADS DASHBOARD
-# =========================
-def render_leads_dashboard():
-    # --- MongoDB fetch ---
-    def get_leads_from_mongodb():
-        try:
-            mongo_uri = st.secrets["mongo_uri"]
-            client = MongoClient(mongo_uri)
-            db = client["sal-leads"]
-            leads_collection = db["leads"]
-            leads = list(leads_collection.find({}, {"_id": 0}))
-            client.close()
-            return leads
-        except Exception as e:
-            st.error(f"Could not fetch leads: {e}")
-            return []
-
-    def lead_status_colored(status):
-        status_clean = str(status).strip()
-        colors = {
-            "Interested": "#FFD700",
-            "Not Interested": "#FB4141",
-            "Closed": "#B4E50D"
-        }
-        color = colors.get(status_clean, "#666")
-        return f"<b style='color: {color};'>{status_clean}</b>"
-
-    def get_month_color(month_index):
-        palette = [
-            "#f7f1d5", "#fbe4eb", "#d3fbe4", "#e4eaff", "#ffe4f1",
-            "#e4fff6", "#f5e4ff", "#f1ffe4", "#ffe4e4", "#e4f1ff"
-        ]
-        return palette[month_index % len(palette)]
-
-    def yyyymmdd_to_month_year(yyyymmdd):
-        try:
-            date_str = str(yyyymmdd)[:8]
-            dt = datetime.strptime(date_str, "%Y%m%d")
-            return dt.strftime("%B %Y")
-        except Exception:
-            return ""
-
-    def format_brokerage_circle_value(val):
-        if val >= 10000000:
-            return f"₹ {val/10000000:.1f}Cr"
-        elif val >= 100000:
-            return f"₹ {val/100000:.1f}L"
-        elif val >= 10000:
-            return f"₹ {val/1000:.0f}K"
-        elif val >= 1000:
-            return f"₹ {val/1000:.1f}K"
-        else:
-            return f"₹ {val:.2f}"
-
-    st.markdown("## Leads Dashboard")
-
-    leads = get_leads_from_mongodb()
-    if leads:
-        df = pd.DataFrame(leads)
-        # Date conversion
-        if "Date" in df.columns:
-            df["Date"] = df["Date"].apply(yyyymmdd_to_month_year)
-
-        # Use only the exact "Brokerage Received" field for calculation and display
-        if "Brokerage Received" in df.columns:
-            df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
-            total_brokerage = df["Brokerage Received"].dropna().sum()
-        else:
-            df["Brokerage Received"] = np.nan
-            total_brokerage = 0.0
-
-        # Lead status counts
-        if "Lead Status" in df.columns:
-            df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
-            interested_count = (df["Lead Status Clean"] == "Interested").sum()
-            not_interested_count = (df["Lead Status Clean"] == "Not Interested").sum()
-            closed_count = (df["Lead Status Clean"] == "Closed").sum()
-        else:
-            interested_count = not_interested_count = closed_count = 0
-
-        total_leads = len(df)
-    else:
-        df = pd.DataFrame()
-        total_leads = interested_count = not_interested_count = closed_count = 0
-        total_brokerage = 0.0
-
-    display_brokerage = format_brokerage_circle_value(total_brokerage)
-
-    # ----- Professional Table Style -----
-    st.markdown("""
-    <style>
-    .leads-table-wrapper {
-        margin: 0 auto 16px auto;
-        width: 98vw;
-        min-width: 360px;
-        max-width: 1100px;
-        overflow-x: auto;
-        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(44, 62, 80, 0.09);
-        padding: 8px 0 18px 0;
-    }
-    .leads-table {
-        border-collapse: separate;
-        border-spacing: 0;
-        width: 100%;
-        min-width: 360px;
-        background: #fff;
-        font-size: 0.90rem;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-    .leads-table th {
-        background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
-        color: #fff;
-        font-weight: 600;
-        padding: 9px 18px 8px 13px;
-        border-bottom: 2.5px solid #e3e6eb;
-        text-align: left;
-        white-space: nowrap;
-        font-size: 1.02rem;
-        letter-spacing: 0.02em;
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        box-shadow: 0 2px 6px rgba(44,62,80,0.04);
-    }
-    .leads-table td {
-        padding: 7px 13px 6px 13px;
-        border-bottom: 1px solid #f1f2f6;
-        background: #fff;
-        vertical-align: middle;
-        white-space: nowrap;
-        font-size: 0.93rem;
-        color: #21272b;
-        line-height: 1.35;
-        letter-spacing: 0.01em;
-        transition: background 0.17s;
-    }
-    .leads-table tr:hover td {
-        background: #f5f7fa;
-    }
-    .leads-table tr:last-child td {
-        border-bottom: none;
-    }
-    .leads-table th:first-child, .leads-table td:first-child {
-        border-top-left-radius: 10px;
-    }
-    .leads-table th:last-child, .leads-table td:last-child {
-        border-top-right-radius: 10px;
-    }
-    .leads-table-wrapper::-webkit-scrollbar {
-        height: 8px;
-        background: #e6eaf2;
-        border-radius: 5px;
-    }
-    .leads-table-wrapper::-webkit-scrollbar-thumb {
-        background: #b5b9c5;
-        border-radius: 5px;
-    }
-    @media (max-width: 900px) {
-        .leads-table th, .leads-table td {
-            font-size: 0.87rem;
-            padding: 6px 8px 5px 8px;
-        }
-        .leads-table-wrapper {
-            max-width: 99vw;
-            padding: 0 0 8px 0;
-        }
-    }
-    .circles-row {
-        display: flex;
-        justify-content: center;
-        gap: 42px;
-        margin-bottom: 30px;
-        flex-wrap: wrap;
-    }
-    .circle-animate {
-        width: 110px;
-        height: 110px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.1rem;
-        color: #fff;
-        font-weight: bold;
-        box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
-        animation: pop 1s ease;
-        margin-bottom: 6px;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        text-shadow: 0 1px 3px #2227;
-        letter-spacing: 1px;
-    }
-    .circle-animate:hover {
-        transform: scale(1.10);
-        box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
-    }
-    .circle-leads    { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}
-    .circle-int      { background: linear-gradient(135deg, #FFD700 0%, #FFB200 100%);}
-    .circle-notint   { background: linear-gradient(135deg, #FB4141 0%, #C91F1F 100%);}
-    .circle-closed   { background: linear-gradient(135deg, #B4E50D 0%, #7BA304 100%);}
-    .circle-brokerage { background: linear-gradient(135deg, #0dbe62 0%, #1ff1a7 100%);}
-    .lead-label {
-        text-align:center; 
-        font-weight:600;
-        font-size: 1.1rem;
-        color: #888;
-        letter-spacing: 1px;
-        margin-bottom: 0.7rem;
-    }
-    @keyframes pop {
-        0% { transform: scale(0.5);}
-        80% { transform: scale(1.1);}
-        100% { transform: scale(1);}
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- Dashboard Circles ---
-    st.markdown(f"""
-    <div class="circles-row">
-        <div>
-            <div class="circle-animate circle-leads">{total_leads}</div>
-            <div class="lead-label">Total Leads</div>
-        </div>
-        <div>
-            <div class="circle-animate circle-int">{interested_count}</div>
-            <div class="lead-label">Interested</div>
-        </div>
-        <div>
-            <div class="circle-animate circle-notint">{not_interested_count}</div>
-            <div class="lead-label">Not Interested</div>
-        </div>
-        <div>
-            <div class="circle-animate circle-closed">{closed_count}</div>
-            <div class="lead-label">Closed</div>
-        </div>
-        <div>
-            <div class="circle-animate circle-brokerage">{display_brokerage}</div>
-            <div class="lead-label">Total Brokerage received</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("### Leads Data")
-
-    if not df.empty:
-        # Assign unique color to each month
-        if "Date" in df.columns:
-            months = df["Date"].fillna("").astype(str).unique()
-            months = [m for m in months if m.strip() != ""]
-            months.sort()
-            month_to_color = {m: get_month_color(i) for i, m in enumerate(months)}
-        else:
-            month_to_color = {}
-
-        # Color the Lead Status column
-        if "Lead Status" in df.columns:
-            df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
-            df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
-        if "Lead Status Clean" in df.columns:
-            df = df.drop(columns=["Lead Status Clean"])
-
-        # Drop 'Number' column if it exists
-        if "Number" in df.columns:
-            df = df.drop(columns=["Number"])
-
-        # Only show "Brokerage Received
-        if "Brokerage Received" in df.columns:
-            df["Brokerage Received"] = df["Brokerage Received"].apply(
-                lambda x: f"₹ {x:.2f}" if pd.notnull(x) else ""
-            )
-            # Place Brokerage Received just after Lead Status if present
-            lead_status_idx = df.columns.get_loc("Lead Status") if "Lead Status" in df.columns else -1
-            if lead_status_idx != -1:
-                cols = list(df.columns)
-                cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
-                df = df[cols]
-
-        def df_to_colored_html(df):
-            headers = df.columns.tolist()
-            html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
-            for h in headers:
-                html += f'<th>{h}</th>'
-            html += '</tr></thead>\n<tbody>'
-            for idx, row in df.iterrows():
-                html += '<tr>'
-                for i, cell in enumerate(row):
-                    if headers[i] == "Date":
-                        month = str(cell).strip()
-                        bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
-                        html += f'<td style="{bgcolor}">{cell}</td>'
-                    else:
-                        html += f'<td>{cell}</td>'
-                html += '</tr>'
-            html += '</tbody></table></div>'
-            return html
-
-        st.write(
-            df_to_colored_html(df),
-            unsafe_allow_html=True,
-        )
-    else:
-        st.info("No leads data found in MongoDB.")
-
-# =========================
-# FACEBOOK DASHBOARD
-# =========================
-def render_facebook_analytics():
-    PAGE_ID = st.secrets["facebook"]["page_id"]
-    ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
-
-    def get_fb_month_range_from_dates(start_date):
-        start = start_date
-        end = start_date + relativedelta(months=1)
-        return start, end
-
-    def get_insight(metric, since, until):
-        url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
-        params = {
-            "since": since,
-            "until": until,
-            "access_token": ACCESS_TOKEN
-        }
-        try:
-            resp = requests.get(url, params=params).json()
-            if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
-                return resp['data'][0]['values'][-1]['value']
-            else:
-                print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
-            return 0
-        except Exception as e:
-            print(f"[ERROR] Exception in get_insight: {e}")
-            return 0
-
-    def get_posts(since, until):
-        url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/posts"
-        params = {
-            "since": since,
-            "until": until,
-            "limit": 100,
-            "access_token": ACCESS_TOKEN
-        }
-        posts = []
-        try:
-            while url:
-                resp = requests.get(url, params=params).json()
-                posts.extend(resp.get('data', []))
-                paging = resp.get('paging', {})
-                url = paging.get('next') if 'next' in paging else None
-                params = {}
-            return posts
-        except Exception as e:
-            print(f"[ERROR] Exception in get_posts: {e}")
-            return []
-
-    def safe_percent(prev, cur):
-        if prev == 0 and cur == 0:
-            return 0
-        elif prev == 0:
-            return 100 if cur > 0 else 0
-        try:
-            return ((cur - prev) / prev) * 100
-        except Exception:
-            return 0
-
-    def get_delta_icon_and_color(val):
-        if val > 0:
-            return "↑", "#2ecc40"
-        elif val < 0:
-            return "↓", "#ff4136"
-        else:
-            return "", "#aaa"
-
-    def get_post_likes(post_id, access_token):
-        url = f"https://graph.facebook.com/v19.0/{post_id}?fields=likes.summary(true)&access_token={access_token}"
-        try:
-            resp = requests.get(url).json()
-            return resp.get('likes', {}).get('summary', {}).get('total_count', 0)
-        except Exception as e:
-            print(f"[ERROR] Exception in get_post_likes: {e}")
-            return 0
-
-    # It is assumed sd, ed, psd, ped are defined in global scope
-    fb_cur_start, fb_cur_end = sd, ed + timedelta(days=1)
-    fb_prev_start, fb_prev_end = psd, ped + timedelta(days=1)
-
-    fb_cur_since, fb_cur_until = fb_cur_start.strftime('%Y-%m-%d'), fb_cur_end.strftime('%Y-%m-%d')
-    fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.strftime('%Y-%m-%d')
-
-    cur_impressions = get_insight("page_impressions", fb_cur_since, fb_cur_until)
-    prev_impressions = get_insight("page_impressions", fb_prev_since, fb_prev_until)
-    impressions_percent = safe_percent(prev_impressions, cur_impressions)
-    cur_likes = get_insight("page_fans", fb_cur_since, fb_cur_until)
-    prev_likes = get_insight("page_fans", fb_prev_since, fb_prev_until)
-    likes_percent = safe_percent(prev_likes, cur_likes)
-    cur_followers = get_insight("page_follows", fb_cur_since, fb_cur_until)
-    prev_followers = get_insight("page_follows", fb_prev_since, fb_prev_until)
-    followers_percent = safe_percent(prev_followers, cur_followers)
-    cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
-    prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
-    cur_posts = len(cur_posts_list)
-    prev_posts = len(prev_posts_list)
-    posts_percent = safe_percent(prev_posts, cur_posts)
-
-    fb_circles = [
-        {
-            "title": "Page Impressions",
-            "value": cur_impressions,
-            "delta": impressions_percent,
-            "color": "#2d448d",
-        },
-        {
-            "title": "Page Likes",
-            "value": cur_likes,
-            "delta": likes_percent,
-            "color": "#a6ce39",
-        },
-        {
-            "title": "Page Followers",
-            "value": cur_followers,
-            "delta": followers_percent,
-            "color": "#459fda",
-        },
-        {
-            "title": "Posts (This Month)",
-            "value": cur_posts,
-            "delta": posts_percent,
-            "color": "#d178a9",
-        }
-    ]
-
-    fb_tooltips = [
-        "The total number of times any content from your Facebook page was displayed to users (impressions) during the selected period.",
-        "The total number of likes your Facebook page has received during the selected period.",
-        "The number of followers of your Facebook page during the selected period.",
-        "Total posts published on your Facebook page this month."
-    ]
-
-    st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
-
-    fb_cols = st.columns(4)
-    for i, col in enumerate(fb_cols):
-        entry = fb_circles[i]
-        icon, colr = get_delta_icon_and_color(entry["delta"])
-        delta_val = abs(round(entry["delta"], 2))
-        delta_str = f"{icon} {delta_val:.2f}%" if icon else f"{delta_val:.2f}%"
-        delta_class = "fb-delta-up" if entry["delta"] > 0 else ("fb-delta-down" if entry["delta"] < 0 else "fb-delta-same")
-        with col:
-            st.markdown(
-                f"""
-                <div class="fb-metric-card">
-                    <div class="fb-metric-label">{entry["title"]}
-                        <span class='tooltip'>
-                            <span class='questionmark'>?</span>
-                            <span class='tooltiptext'>{fb_tooltips[i]}</span>
-                        </span>
-                    </div>
-                    <div class="fb-animated-circle" style="background:{entry['color']};">
-                        <span>{entry["value"]}</span>
-                    </div>
-                    <div class="fb-delta-row">
-                        <span class="{delta_class}">{delta_str}</span>
-                        <span class="fb-delta-note">(vs. Previous Month)</span>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-    if all(x["value"] == 0 for x in fb_circles):
-        st.warning("No data detected for any metric. If your Facebook page is new, or if your API token is missing permissions, you may see zeros. Double-check your Facebook access token, permissions, and that your page has analytics data.")
-
-    month_title = fb_cur_start.strftime('%B %Y')
-    st.markdown(f"<h3 style='color:#2d448d;'>Number of Post in {month_title}</h3>", unsafe_allow_html=True)
-
-    if fb_circles[3]['value'] > 0:
-        post_table = []
-        for idx, post in enumerate(cur_posts_list, 1):
-            post_id = post["id"]
-            message = post.get("message", "")
-            title_text = (message[:50] + "...") if len(message) > 50 else message
-            title_html = f"<b>{title_text}</b>"
-            created_time = datetime.strptime(
-                post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
-            ).strftime("%-d %b %Y")
-            likes = get_post_likes(post_id, ACCESS_TOKEN)
-            post_table.append({
-                "Post Count": idx,
-                "Post Title": title_html,
-                "Date & time": created_time,
-                "Post Likes": likes
-            })
-        df = pd.DataFrame(post_table)
-        st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
-    else:
-        st.info("No posts published this month.")
-    st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
-# =========================
-# YOUTUBE DASHBOARD
-# =========================
-def render_youtube_analytics():
-    def get_access_token(client_id, client_secret, refresh_token):
-        """Dynamically fetches an access token using your refresh_token."""
-        if not refresh_token or refresh_token == "YOUR_REFRESH_TOKEN":
-            st.error(
-                "Missing refresh token! Please generate a new refresh token using the OAuth flow "
-                "and add it to your .streamlit/secrets.toml under [youtube]."
-            )
-            st.stop()
-        url = "https://oauth2.googleapis.com/token"
-        data = {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token"
-        }
-        response = requests.post(url, data=data)
-        if response.status_code != 200:
-            st.error(f"OAuth error: {response.text}")
-            st.stop()
-        return response.json()["access_token"]
-
-    def get_auth_headers(access_token):
-        return {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-
-    def get_date_ranges():
-        today = date.today()
-        end_cur = today
-        start_cur = today - timedelta(days=27)
-        end_prev = start_cur - timedelta(days=1)
-        start_prev = end_prev - timedelta(days=27)
-        return start_cur, end_cur, start_prev, end_prev
-
-    # Read credentials from Streamlit secrets
-    client_id = st.secrets["youtube"].get("client_id", "YOUR_CLIENT_ID")
-    client_secret = st.secrets["youtube"].get("client_secret", "YOUR_CLIENT_SECRET")
-    refresh_token = st.secrets["youtube"].get("refresh_token", "YOUR_REFRESH_TOKEN")
-    YOUTUBE_API_KEY = st.secrets["youtube"].get("api_key", "YOUR_API_KEY")
-    CHANNEL_ID = st.secrets["youtube"].get("channel_id", "YOUR_CHANNEL_ID")
-
-    YT_ACCESS_TOKEN = get_access_token(client_id, client_secret, refresh_token)
-
-    def get_yt_analytics_summary(start_date, end_date):
-        endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-        params = {
-            "ids": f"channel=={CHANNEL_ID}",
-            "startDate": start_date.strftime("%Y-%m-%d"),
-            "endDate": end_date.strftime("%Y-%m-%d"),
-            "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
-            "dimensions": "",
-        }
-        resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-        if "rows" not in resp:
-            return {"views": 0, "watch_time": 0, "subs_gained": 0, "subs_lost": 0}
-        row = resp["rows"][0]
-        col_map = {c["name"]: i for i, c in enumerate(resp["columnHeaders"])}
-        return {
-            "views": int(row[col_map["views"]]),
-            "watch_time": int(row[col_map["estimatedMinutesWatched"]]),
-            "subs_gained": int(row[col_map["subscribersGained"]]),
-            "subs_lost": int(row[col_map["subscribersLost"]]),
-        }
-
-    def get_total_subscribers():
-        url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={CHANNEL_ID}&key={YOUTUBE_API_KEY}"
-        resp = requests.get(url).json()
-        if "items" in resp and len(resp["items"]) > 0:
-            return int(resp["items"][0]["statistics"].get("subscriberCount", 0))
-        return 0
-
-    def get_new_subs_text(subs_gained, subs_lost):
-        net = subs_gained - subs_lost
-        if net > 0:
-            color = "#2ecc40"  # green
-            sign = "+"
-            text = f"<span style='color:{color}; font-weight:bold;'>{sign}{net} new</span>"
-        elif net < 0:
-            color = "#ff4136"  # red
-            sign = "-"
-            text = f"<span style='color:{color}; font-weight:bold;'>{sign}{abs(net)} unsubscribed</span>"
-        else:
-            color = "#888"
-            text = f"<span style='color:{color}; font-weight:bold;'>0 (no change)</span>"
-        return text
-
-    def get_delta_text(current, previous):
-        delta = current - previous
-        if previous == 0:
-            percent = 0
-        else:
-            percent = delta / previous * 100
-        if delta > 0:
-            color = "#2ecc40"
-            sign = "+"
-            text = f"<span style='color:{color}; font-weight:bold;'>{sign}{delta} ({percent:.1f}%)</span>"
-        elif delta < 0:
-            color = "#ff4136"
-            sign = "-"
-            text = f"<span style='color:{color}; font-weight:bold;'>{sign}{abs(delta)} ({percent:.1f}%)</span>"
-        else:
-            color = "#888"
-            text = f"<span style='color:{color}; font-weight:bold;'>0</span>"
-        return text
-
-    start_cur, end_cur, start_prev, end_prev = get_date_ranges()
-    overview_cur = get_yt_analytics_summary(start_cur, end_cur)
-    overview_prev = get_yt_analytics_summary(start_prev, end_prev)
-    total_subscribers = get_total_subscribers()
-
-    st.markdown("""
-    <style>
-    .section-header {
-        font-size: 2.1em !important;
-        font-weight: bold !important;
-        color: #2d448d !important;
-        margin-bottom: 0.5em;
-    }
-    .yt-metric-circle {
-        transition: transform 0.18s cubic-bezier(.4,2,.55,.44);
-        cursor: pointer;
-    }
-    .yt-metric-circle:hover {
-        transform: scale(1.13);
-        box-shadow: 0 6px 20px rgba(44,68,141,0.18);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
-    overview_cols = st.columns(3)
-
-    overview_metrics = [
-        {
-            "label": "Subscribers (Net)",
-            "value": total_subscribers,
-            "subs_text": get_new_subs_text(overview_cur["subs_gained"], overview_cur["subs_lost"]),
-            "delta_text": "",
-            "color": "#ffe1c8",
-            "circle_color": "#e67e22",
-        },
-        {
-            "label": "Total Views",
-            "value": overview_cur["views"],
-            "subs_text": "",
-            "delta_text": get_delta_text(overview_cur["views"], overview_prev["views"]),
-            "color": "#c8e6fa",
-            "circle_color": "#3498db",
-        },
-        {
-            "label": "Watch Time (min)",
-            "value": overview_cur["watch_time"],
-            "subs_text": "",
-            "delta_text": get_delta_text(overview_cur["watch_time"], overview_prev["watch_time"]),
-            "color": "#a7f1df",
-            "circle_color": "#16a085",
-        },
-    ]
-
-    for i, col in enumerate(overview_cols):
-        metric = overview_metrics[i]
-        with col:
-            st.markdown(
-                f"""
-                <div style='text-align:center; font-weight:500; font-size:23px; margin-bottom:0.2em; color:#2d448d'>
-                    {metric["label"]}
-                </div>
-                <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
-                    <div class="yt-metric-circle" style='background:{metric["color"]}; border-radius:50%; width:100px; height:100px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.12);'>
-                        <span style='color:{metric["circle_color"]}; font-size:2em; font-family: Fira Code, monospace; font-weight:bold;'>{metric["value"]}</span>
-                    </div>
-                </div>
-                <div style='text-align:center; font-size:16px; margin-top:0.3em; min-height:1.5em;'>
-                    {metric["subs_text"] if metric["subs_text"] else metric["delta_text"]}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-    def get_top_videos(start_date, end_date, max_results=5):
-        video_url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={CHANNEL_ID}&part=id&order=date&type=video&maxResults=50"
-        resp = requests.get(video_url).json()
-        video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
-        if not video_ids:
-            return pd.DataFrame()
-        stats_url = f"https://www.googleapis.com/youtube/v3/videos?key={YOUTUBE_API_KEY}&id={','.join(video_ids)}&part=snippet,statistics"
-        stats_resp = requests.get(stats_url).json()
-        data = []
-        for item in stats_resp.get("items", []):
-            published = item["snippet"]["publishedAt"][:10]
-            vid_id = item["id"]
-            title = item["snippet"]["title"][:60]
-            views = int(item["statistics"].get("viewCount", 0))
-            likes = int(item["statistics"].get("likeCount", 0))
-            comments = int(item["statistics"].get("commentCount", 0))
-            data.append({
-                "id": vid_id,
-                "title": title,
-                "published": published,
-                "views": views,
-                "likes": likes,
-                "comments": comments
-            })
-        df = pd.DataFrame(data).sort_values("views", ascending=False).head(max_results)
-        ids = list(df["id"])
-        if not ids:
-            return df
-        endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-        params = {
-            "ids": "channel==MINE",
-            "startDate": start_date.strftime("%Y-%m-%d"),
-            "endDate": end_date.strftime("%Y-%m-%d"),
-            "metrics": "estimatedMinutesWatched,views,likes,comments",
-            "dimensions": "video",
-            "filters": f"video=={','.join(ids)}"
-        }
-        resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-        if "rows" not in resp:
-            df["watch_time"] = 0
-        else:
-            wt_dict = {row[0]: row[1] for row in resp["rows"]}
-            df["watch_time"] = df["id"].map(wt_dict).fillna(0)
-        return df
-
-    top_videos_df = get_top_videos(start_cur, end_cur, max_results=5)
-
-    st.markdown('<div class="section-header">Top 5 Videos (Current Period)</div>', unsafe_allow_html=True)
-    if not top_videos_df.empty:
-        st.markdown("""
-        <style>
-        .yt-table th, .yt-table td {padding: 7px 13px; font-size: 1.01em;}
-        .yt-table th {background: #2d448d; color:#fff;}
-        .yt-table tr:nth-child(even) {background: #f3f3f3;}
-        .yt-table tr:nth-child(odd) {background: #fff;}
-        </style>
-        """, unsafe_allow_html=True)
-        
-        display_df = top_videos_df[["title", "views", "watch_time", "likes", "comments"]].copy()
-        display_df.columns = ["Title", "Views", "Watch Time (min)", "Likes", "Comments"]
-        display_df["Title"] = [
-            f'<a href="https://www.youtube.com/watch?v={vid_id}" target="_blank">{title}</a>'
-            for title, vid_id in zip(display_df["Title"], top_videos_df["id"])
-        ]
-        st.markdown(
-            display_df.to_html(escape=False, index=False, classes="yt-table"),
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("No video data found for this period.")
-
-    def get_traffic_sources(start_date, end_date):
-        endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-        params = {
-            "ids": "channel==MINE",
-            "startDate": start_date.strftime("%Y-%m-%d"),
-            "endDate": end_date.strftime("%Y-%m-%d"),
-            "metrics": "views",
-            "dimensions": "insightTrafficSourceType",
-        }
-        resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-        if "rows" not in resp:
-            return pd.DataFrame()
-        df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
-        df["views"] = df["views"].astype(int)
-        return df
-
-    traf_src_df = get_traffic_sources(start_cur, end_cur)
-
-    st.markdown('<div class="section-header">Traffic Sources</div>', unsafe_allow_html=True)
-    if not traf_src_df.empty:
-        pie_fig = px.pie(traf_src_df, values="views", names="insightTrafficSourceType",
-                        color_discrete_sequence=px.colors.sequential.Plasma,
-                        title="Views by Traffic Source", hole=0.45)
-        pie_fig.update_traces(textinfo='percent+label', pull=[0.05]*len(traf_src_df))
-        st.plotly_chart(pie_fig, use_container_width=True)
-    else:
-        st.info("No traffic source data available.")
-
-    def get_trends_over_time(start_date, end_date):
-        endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-        params = {
-            "ids": "channel==MINE",
-            "startDate": start_date.strftime("%Y-%m-%d"),
-            "endDate": end_date.strftime("%Y-%m-%d"),
-            "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
-            "dimensions": "day",
-        }
-        resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-        if "rows" not in resp:
-            return pd.DataFrame()
-        df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
-        df["date"] = pd.to_datetime(df["day"])
-        df["views"] = df["views"].astype(int)
-        df["watch_time"] = df["estimatedMinutesWatched"].astype(int)
-        df["subs"] = df["subscribersGained"].astype(int) - df["subscribersLost"].astype(int)
-        return df
-
-    trend_df = get_trends_over_time(start_cur - timedelta(days=59), end_cur)
-
-    st.markdown('<div class="section-header">Trends Over Time</div>', unsafe_allow_html=True)
-    if not trend_df.empty:
-        tr_cols = st.columns(3)
-        with tr_cols[0]:
-            fig1 = px.line(trend_df, x="date", y="views", title="Views (Last 60 days)", markers=True)
-            fig1.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-            st.plotly_chart(fig1, use_container_width=True)
-        with tr_cols[1]:
-            fig2 = px.line(trend_df, x="date", y="watch_time", title="Watch Time (min)", markers=True)
-            fig2.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-            st.plotly_chart(fig2, use_container_width=True)
-        with tr_cols[2]:
-            fig3 = px.line(trend_df, x="date", y="subs", title="Net Subscribers", markers=True)
-            fig3.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-            st.plotly_chart(fig3, use_container_width=True)
-    else:
-        st.info("No trend data available.")
-
-    st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
+if st.session_state.get("refresh", False):
+    st.session_state["refresh"] = False
+    st.rerun()
 
 # =========================
 # AUTHENTICATION & CONFIG
@@ -1486,6 +485,16 @@ SC_SITE_URL = 'https://www.salasarservices.com/'
 # --- Loader for credentials setup ---
 credentials_placeholder = st.empty()
 show_loader(credentials_placeholder, "Authenticating and initializing analytics APIs...")
+def get_credentials():
+    sa = st.secrets['gcp']['service_account']
+    info = json.loads(sa)
+    pk = info.get('private_key', '').replace('\\n', '\n')
+    if not pk.endswith('\n'):
+        pk += '\n'
+    info['private_key'] = pk
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    creds.refresh(GAuthRequest())
+    return creds
 creds = get_credentials()
 ga4 = BetaAnalyticsDataClient(credentials=creds)
 sc = build('searchconsole', 'v1', credentials=creds)
@@ -1494,8 +503,26 @@ credentials_placeholder.empty()
 # --- Loader for all metric data ---
 metrics_placeholder = st.empty()
 show_loader(metrics_placeholder, "Fetching dashboard data...")
-
 # (All your data metrics and calculations here.)
+def pct_change(current, previous):
+    return 0 if previous == 0 else (current - previous) / previous * 100
+
+def get_gsc_site_stats(site, sd, ed):
+    try:
+        body = {
+            'startDate': sd.strftime('%Y-%m-%d'),
+            'endDate': ed.strftime('%Y-%m-%d'),
+            'rowLimit': 1
+        }
+        resp = sc.searchanalytics().query(siteUrl=site, body=body).execute()
+        if not resp.get('rows'):
+            return 0, 0, 0.0
+        row = resp['rows'][0]
+        return row.get('clicks', 0), row.get('impressions', 0), row.get('ctr', 0.0)
+    except Exception as e:
+        st.error(f"Error fetching GSC site stats: {e}")
+        return 0, 0, 0.0
+
 gsc_clicks, gsc_impressions, gsc_ctr = get_gsc_site_stats(SC_SITE_URL, sd, ed)
 gsc_clicks_prev, gsc_impressions_prev, gsc_ctr_prev = get_gsc_site_stats(SC_SITE_URL, psd, ped)
 gsc_clicks_delta = pct_change(gsc_clicks, gsc_clicks_prev)
@@ -1522,8 +549,51 @@ perf_circles = [
         "color": "#16a085",
     }
 ]
+# ... [all your other data calculations here for tables, analytics, leads, fb, etc]
+# For brevity, assume all previous calculations (top_content_data, cur, prev, delta, etc) are here.
 time.sleep(1.2)
 metrics_placeholder.empty()
+
+# Now render all dashboard sections as before (remove/reduce per-section time.sleep):
+# [Website Performance Circles]
+# [Top Content Table]
+# [Website Analytics Circles]
+# [New vs Returning Users]
+# [Leads Section]
+# [Facebook Analytics Circles]
+# (All as in your last working code.)
+
+# The loader will show while all heavy data fetching happens, and disappear before UI rendering.
+
+# =========================
+# DATA COLLECTION FOR PDF
+# =========================
+gsc_clicks, gsc_impressions, gsc_ctr = get_gsc_site_stats(SC_SITE_URL, sd, ed)
+gsc_clicks_prev, gsc_impressions_prev, gsc_ctr_prev = get_gsc_site_stats(SC_SITE_URL, psd, ped)
+gsc_clicks_delta = pct_change(gsc_clicks, gsc_clicks_prev)
+gsc_impr_delta = pct_change(gsc_impressions, gsc_impressions_prev)
+gsc_ctr_delta = pct_change(gsc_ctr, gsc_ctr_prev)
+
+perf_circles = [
+    {
+        "title": "Total Website Clicks",
+        "value": gsc_clicks,
+        "delta": gsc_clicks_delta,
+        "color": "#e67e22",
+    },
+    {
+        "title": "Total Impressions",
+        "value": gsc_impressions,
+        "delta": gsc_impr_delta,
+        "color": "#3498db",
+    },
+    {
+        "title": "Average CTR",
+        "value": gsc_ctr * 100,
+        "delta": gsc_ctr_delta,
+        "color": "#16a085",
+    }
+]
 
 def get_gsc_pages_clicks(site, sd, ed, limit=5):
     try:
@@ -1699,4 +769,1041 @@ if pdf_report_btn:
         mime="application/pdf"
     )
 
+# =========================
+# WEBSITE PERFORMANCE SECTION
+# =========================
+st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
+cols_perf = st.columns(3)
+animation_duration = 0.5
+perf_tooltips = [
+    "The total number of times users clicked your website's listing in Google Search results during the selected period.",
+    "The total number of times your website appeared in Google Search results (regardless of clicks) for any query.",
+    "The percentage of impressions that resulted in a click (Click-Through Rate) for your website in Google Search results during the selected period."
+]
+for i, col in enumerate(cols_perf):
+    entry = perf_circles[i]
+    with col:
+        st.markdown(
+            f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
+                {entry["title"]}
+                <span class='tooltip'>
+                  <span class='questionmark'>?</span>
+                  <span class='tooltiptext'>{perf_tooltips[i]}</span>
+                </span>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        placeholder = st.empty()
+        steps = 45
+        for n in range(steps + 1):
+            if entry["title"] == "Average CTR":
+                display_val = f"{entry['value'] * n / steps:.2f}%"
+            else:
+                display_val = int(entry["value"] * n / steps)
+            placeholder.markdown(
+                f"""
+                <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
+                  <div class='animated-circle' style='background:{entry["color"]};'>
+                    <span class='animated-circle-value'>{display_val}</span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            time.sleep(animation_duration / steps)
+        pct_color = "#2ecc40" if entry["delta"] >= 0 else "#ff4136"
+        pct_icon = (
+            "↑" if entry["delta"] >= 0 else "↓"
+        )
+        pct_icon_colored = (
+            f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
+        )
+        # UPDATED LINE BELOW
+        pct_delta_text = (
+            f"{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span>"
+        )
+        st.markdown(
+            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_delta_text}</div>",
+            unsafe_allow_html=True
+        )
+
+# =========================
+# TOP CONTENT SECTION
+# =========================
+st.markdown('<div class="section-header">Top Content</div>', unsafe_allow_html=True)
+def render_top_content_table(data):
+    df = pd.DataFrame(data)
+    if not df.empty:
+        df["Clicks"] = df["Clicks"].apply(lambda x: f"<span class='animated-circle-value' style='font-size:1.2em'>{x}</span>")
+        def fmt_change(val):
+            pct = float(val)
+            color = "#2ecc40" if pct >= 0 else "#ff4136"
+            arrow = "↑" if pct >= 0 else "↓"
+            return f"<span class='animated-circle-value' style='color:{color};font-size:1.15em'>{arrow} {pct:+.2f}%</span>"
+        df["Change (%)"] = df["Change (%)"].apply(fmt_change)
+        st.markdown(df.to_html(escape=False, index=False, classes="styled-table"), unsafe_allow_html=True)
+    else:
+        st.warning("No top content data available for this period.")
+render_top_content_table(top_content_data)
+
+# =========================
+# WEBSITE ANALYTICS SECTION
+# =========================
+st.markdown('<div class="section-header">Website Analytics</div>', unsafe_allow_html=True)
+
+circle_colors = ["#2d448d", "#a6ce39", "#459fda"]
+titles = [
+    "Total Users",
+    "Sessions",
+    "Organic Clicks"
+]
+tooltips = [
+    "Number of people who visited your website.",
+    "Total number of visits to your website.",
+    "Times people clicked on your website in Google search."
+]
+values = [cur, total, clicks]
+deltas = [delta, delta2, delta3]
+cols = st.columns(3)
+animation_duration = 0.5
+for i, col in enumerate(cols):
+    with col:
+        st.markdown(
+            f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
+                {titles[i]}
+                <span class='tooltip'>
+                  <span class='questionmark'>?</span>
+                  <span class='tooltiptext'>{tooltips[i]}</span>
+                </span>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        placeholder = st.empty()
+        steps = 45
+        for n in range(steps + 1):
+            display_val = int(values[i] * n / steps)
+            placeholder.markdown(
+                f"""
+                <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
+                  <div class='animated-circle' style='background:{circle_colors[i]};'>
+                    <span class='animated-circle-value'>{display_val}</span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            time.sleep(animation_duration / steps)
+        pct_color = "#2ecc40" if deltas[i] >= 0 else "#ff4136"
+        pct_icon = (
+            "↑" if deltas[i] >= 0 else "↓"
+        )
+        pct_icon_colored = (
+            f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
+        )
+        st.markdown(
+            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(deltas[i]):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
+            unsafe_allow_html=True
+        )
+
+# =========================
+# NEW VS RETURNING USERS SECTION
+# =========================
+st.markdown('<div class="section-header">New vs Returning Users</div>', unsafe_allow_html=True)
+cols_ret = st.columns(2)
+animation_duration = 0.5
+for i, col in enumerate(cols_ret):
+    entry = returning_new_users_circles[i]
+    with col:
+        st.markdown(
+            f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
+                {entry["title"]}
+                <span class='tooltip'>
+                  <span class='questionmark'>?</span>
+                  <span class='tooltiptext'>{returning_new_tooltips[i]}</span>
+                </span>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        placeholder = st.empty()
+        steps = 45
+        for n in range(steps + 1):
+            display_val = int(entry["value"] * n / steps)
+            placeholder.markdown(
+                f"""
+                <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
+                  <div class='animated-circle' style='background:{entry["color"]};'>
+                    <span class='animated-circle-value'>{display_val}</span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            time.sleep(animation_duration / steps)
+        pct_color = "#2ecc40" if entry["delta"] >= 0 else "#ff4136"
+        pct_icon = "↑" if entry["delta"] >= 0 else "↓"
+        pct_icon_colored = (
+            f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
+        )
+        st.markdown(
+            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
+            unsafe_allow_html=True
+        )
+        
+# --- Two side-by-side tables ---
+col1, col2 = st.columns(2)
+with col1:
+    st.subheader('Active Users by Country (Top 5)')
+    country_df = pd.DataFrame(country_data)
+    def flag_html(row):
+        code = country_name_to_code(row['country'])
+        flag_url = f"https://flagcdn.com/16x12/{code}.png" if code else ""
+        flag_img = f'<img src="{flag_url}" style="height:12px;margin-right:7px;vertical-align:middle;">' if code else ""
+        return f"{flag_img}{row['country']}"
+    country_df['Country'] = country_df.apply(flag_html, axis=1)
+    country_df = country_df[['Country', 'activeUsers']]
+    country_df.rename(columns={'activeUsers': 'Active Users'}, inplace=True)
+    st.markdown(country_df.to_html(escape=False, index=False, classes='styled-table'), unsafe_allow_html=True)
+
+with col2:
+    st.subheader('Traffic Acquisition by Channel')
+    render_table(traf_df)
+
+# =========================
+# LEADS SECTION
+# =========================
+
+def get_leads_from_mongodb():
+    try:
+        mongo_uri = st.secrets["mongo_uri"]
+        from pymongo import MongoClient
+        client = MongoClient(mongo_uri)
+        db = client["sal-leads"]
+        leads_collection = db["leads"]
+        leads = list(leads_collection.find({}, {"_id": 0}))
+        client.close()
+        return leads
+    except Exception as e:
+        st.error(f"Could not fetch leads: {e}")
+        return []
+
+def lead_status_colored(status):
+    status_clean = str(status).strip()
+    colors = {
+        "Interested": "#FFD700",
+        "Not Interested": "#FB4141",
+        "Closed": "#B4E50D"
+    }
+    color = colors.get(status_clean, "#666")
+    return f"<b style='color: {color};'>{status_clean}</b>"
+
+def get_month_color(month_index):
+    palette = [
+        "#f7f1d5", "#fbe4eb", "#d3fbe4", "#e4eaff", "#ffe4f1",
+        "#e4fff6", "#f5e4ff", "#f1ffe4", "#ffe4e4", "#e4f1ff"
+    ]
+    return palette[month_index % len(palette)]
+
+def yyyymmdd_to_month_year(yyyymmdd):
+    try:
+        date_str = str(yyyymmdd)[:8]
+        dt = datetime.strptime(date_str, "%Y%m%d")
+        return dt.strftime("%B %Y")
+    except Exception:
+        return ""
+
+def format_brokerage_circle_value(val):
+    if val >= 10000000:
+        return f"₹ {val/10000000:.1f}Cr"
+    elif val >= 100000:
+        return f"₹ {val/100000:.1f}L"
+    elif val >= 10000:
+        return f"₹ {val/1000:.0f}K"
+    elif val >= 1000:
+        return f"₹ {val/1000:.1f}K"
+    else:
+        return f"₹ {val:.2f}"
+
+st.markdown("## Leads Dashboard")
+
+leads = get_leads_from_mongodb()
+if leads:
+    df = pd.DataFrame(leads)
+    # Date conversion
+    if "Date" in df.columns:
+        df["Date"] = df["Date"].apply(yyyymmdd_to_month_year)
+
+    # Use only the exact "Brokerage Received" field for calculation and display
+    if "Brokerage Received" in df.columns:
+        # Convert to numeric, coerce errors (non-numeric/nan/null become np.nan)
+        df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
+        # Sum ignoring nan/null
+        total_brokerage = df["Brokerage Received"].dropna().sum()
+    else:
+        df["Brokerage Received"] = np.nan
+        total_brokerage = 0.0
+
+    # Lead status counts
+    if "Lead Status" in df.columns:
+        df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
+        interested_count = (df["Lead Status Clean"] == "Interested").sum()
+        not_interested_count = (df["Lead Status Clean"] == "Not Interested").sum()
+        closed_count = (df["Lead Status Clean"] == "Closed").sum()
+    else:
+        interested_count = not_interested_count = closed_count = 0
+
+    total_leads = len(df)
+else:
+    df = pd.DataFrame()
+    total_leads = interested_count = not_interested_count = closed_count = 0
+    total_brokerage = 0.0
+
+display_brokerage = format_brokerage_circle_value(total_brokerage)
+
+# ----- Professional Table Style -----
+st.markdown("""
+<style>
+.leads-table-wrapper {
+    margin: 0 auto 16px auto;
+    width: 98vw;
+    min-width: 360px;
+    max-width: 1100px;
+    overflow-x: auto;
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.09);
+    padding: 8px 0 18px 0;
+}
+.leads-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 360px;
+    background: #fff;
+    font-size: 0.90rem;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.leads-table th {
+    background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
+    color: #fff;
+    font-weight: 600;
+    padding: 9px 18px 8px 13px;
+    border-bottom: 2.5px solid #e3e6eb;
+    text-align: left;
+    white-space: nowrap;
+    font-size: 1.02rem;
+    letter-spacing: 0.02em;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(44,62,80,0.04);
+}
+.leads-table td {
+    padding: 7px 13px 6px 13px;
+    border-bottom: 1px solid #f1f2f6;
+    background: #fff;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 0.93rem;
+    color: #21272b;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    transition: background 0.17s;
+}
+.leads-table tr:hover td {
+    background: #f5f7fa;
+}
+.leads-table tr:last-child td {
+    border-bottom: none;
+}
+.leads-table th:first-child, .leads-table td:first-child {
+    border-top-left-radius: 10px;
+}
+.leads-table th:last-child, .leads-table td:last-child {
+    border-top-right-radius: 10px;
+}
+.leads-table-wrapper::-webkit-scrollbar {
+    height: 8px;
+    background: #e6eaf2;
+    border-radius: 5px;
+}
+.leads-table-wrapper::-webkit-scrollbar-thumb {
+    background: #b5b9c5;
+    border-radius: 5px;
+}
+@media (max-width: 900px) {
+    .leads-table th, .leads-table td {
+        font-size: 0.87rem;
+        padding: 6px 8px 5px 8px;
+    }
+    .leads-table-wrapper {
+        max-width: 99vw;
+        padding: 0 0 8px 0;
+    }
+}
+.circles-row {
+    display: flex;
+    justify-content: center;
+    gap: 42px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+.circle-animate {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.1rem;
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
+    animation: pop 1s ease;
+    margin-bottom: 6px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    text-shadow: 0 1px 3px #2227;
+    letter-spacing: 1px;
+}
+.circle-animate:hover {
+    transform: scale(1.10);
+    box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
+}
+.circle-leads    { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}
+.circle-int      { background: linear-gradient(135deg, #FFD700 0%, #FFB200 100%);}
+.circle-notint   { background: linear-gradient(135deg, #FB4141 0%, #C91F1F 100%);}
+.circle-closed   { background: linear-gradient(135deg, #B4E50D 0%, #7BA304 100%);}
+.circle-brokerage { background: linear-gradient(135deg, #0dbe62 0%, #1ff1a7 100%);}
+.lead-label {
+    text-align:center; 
+    font-weight:600;
+    font-size: 1.1rem;
+    color: #888;
+    letter-spacing: 1px;
+    margin-bottom: 0.7rem;
+}
+@keyframes pop {
+    0% { transform: scale(0.5);}
+    80% { transform: scale(1.1);}
+    100% { transform: scale(1);}
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- Dashboard Circles ---
+st.markdown(f"""
+<div class="circles-row">
+    <div>
+        <div class="circle-animate circle-leads">{total_leads}</div>
+        <div class="lead-label">Total Leads</div>
+    </div>
+    <div>
+        <div class="circle-animate circle-int">{interested_count}</div>
+        <div class="lead-label">Interested</div>
+    </div>
+    <div>
+        <div class="circle-animate circle-notint">{not_interested_count}</div>
+        <div class="lead-label">Not Interested</div>
+    </div>
+    <div>
+        <div class="circle-animate circle-closed">{closed_count}</div>
+        <div class="lead-label">Closed</div>
+    </div>
+    <div>
+        <div class="circle-animate circle-brokerage">{display_brokerage}</div>
+        <div class="lead-label">Total Brokerage received</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("### Leads Data")
+
+if not df.empty:
+    # Assign unique color to each month
+    if "Date" in df.columns:
+        months = df["Date"].fillna("").astype(str).unique()
+        months = [m for m in months if m.strip() != ""]
+        months.sort()
+        month_to_color = {m: get_month_color(i) for i, m in enumerate(months)}
+    else:
+        month_to_color = {}
+
+    # Color the Lead Status column
+    if "Lead Status" in df.columns:
+        df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
+        df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
+    if "Lead Status Clean" in df.columns:
+        df = df.drop(columns=["Lead Status Clean"])
+
+    # Drop 'Number' column if it exists
+    if "Number" in df.columns:
+        df = df.drop(columns=["Number"])
+
+    # Only show "Brokerage Received" (case-sensitive) column, formatted for display
+    if "Brokerage Received" in df.columns:
+        df["Brokerage Received"] = df["Brokerage Received"].apply(
+            lambda x: f"₹ {x:.2f}" if pd.notnull(x) else ""
+        )
+        # Place Brokerage Received just after Lead Status if present
+        lead_status_idx = df.columns.get_loc("Lead Status") if "Lead Status" in df.columns else -1
+        if lead_status_idx != -1:
+            cols = list(df.columns)
+            cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
+            df = df[cols]
+
+    def df_to_colored_html(df):
+        headers = df.columns.tolist()
+        html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
+        for h in headers:
+            html += f'<th>{h}</th>'
+        html += '</tr></thead>\n<tbody>'
+        for idx, row in df.iterrows():
+            html += '<tr>'
+            for i, cell in enumerate(row):
+                if headers[i] == "Date":
+                    month = str(cell).strip()
+                    bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
+                    html += f'<td style="{bgcolor}">{cell}</td>'
+                else:
+                    html += f'<td>{cell}</td>'
+            html += '</tr>'
+        html += '</tbody></table></div>'
+        return html
+
+    st.write(
+        df_to_colored_html(df),
+        unsafe_allow_html=True,
+    )
+else:
+    st.info("No leads data found in MongoDB.")
+
+    
+# =========================
+# SOCIAL MEDIA ANALYTICS REPORTING DASHBOARD STARTS
+# =========================
+
+# =========================
+# FACEBOOK ANALYTICS
+# =========================
+
+PAGE_ID = st.secrets["facebook"]["page_id"]
+ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
+
+def get_fb_month_range_from_dates(start_date):
+    start = start_date
+    end = start_date + relativedelta(months=1)
+    return start, end
+
+def get_insight(metric, since, until):
+    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
+    params = {
+        "since": since,
+        "until": until,
+        "access_token": ACCESS_TOKEN
+    }
+    try:
+        resp = requests.get(url, params=params).json()
+        if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
+            return resp['data'][0]['values'][-1]['value']
+        else:
+            print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
+        return 0
+    except Exception as e:
+        print(f"[ERROR] Exception in get_insight: {e}")
+        return 0
+
+def get_posts(since, until):
+    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/posts"
+    params = {
+        "since": since,
+        "until": until,
+        "limit": 100,
+        "access_token": ACCESS_TOKEN
+    }
+    posts = []
+    try:
+        while url:
+            resp = requests.get(url, params=params).json()
+            posts.extend(resp.get('data', []))
+            paging = resp.get('paging', {})
+            url = paging.get('next') if 'next' in paging else None
+            params = {}
+        return posts
+    except Exception as e:
+        print(f"[ERROR] Exception in get_posts: {e}")
+        return []
+
+def safe_percent(prev, cur):
+    if prev == 0 and cur == 0:
+        return 0
+    elif prev == 0:
+        return 100 if cur > 0 else 0
+    try:
+        return ((cur - prev) / prev) * 100
+    except Exception:
+        return 0
+
+def get_delta_icon_and_color(val):
+    if val > 0:
+        return "↑", "#2ecc40"
+    elif val < 0:
+        return "↓", "#ff4136"
+    else:
+        return "", "#aaa"
+
+def get_post_likes(post_id, access_token):
+    url = f"https://graph.facebook.com/v19.0/{post_id}?fields=likes.summary(true)&access_token={access_token}"
+    try:
+        resp = requests.get(url).json()
+        return resp.get('likes', {}).get('summary', {}).get('total_count', 0)
+    except Exception as e:
+        print(f"[ERROR] Exception in get_post_likes: {e}")
+        return 0
+
+# PATCH: Use YYYY-MM-DD for since/until (not isoformat)
+fb_cur_start, fb_cur_end = sd, ed + timedelta(days=1)
+fb_prev_start, fb_prev_end = psd, ped + timedelta(days=1)
+
+fb_cur_since, fb_cur_until = fb_cur_start.strftime('%Y-%m-%d'), fb_cur_end.strftime('%Y-%m-%d')
+fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.strftime('%Y-%m-%d')
+
+def test_page_access():
+    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}"
+    params = {"access_token": ACCESS_TOKEN, "fields": "name"}
+    resp = requests.get(url, params=params).json()
+    print("[DEBUG] Page info:", resp)
+
+# Uncomment this line to debug your access (optional)
+# test_page_access()
+
+cur_impressions = get_insight("page_impressions", fb_cur_since, fb_cur_until)
+prev_impressions = get_insight("page_impressions", fb_prev_since, fb_prev_until)
+impressions_percent = safe_percent(prev_impressions, cur_impressions)
+cur_likes = get_insight("page_fans", fb_cur_since, fb_cur_until)
+prev_likes = get_insight("page_fans", fb_prev_since, fb_prev_until)
+likes_percent = safe_percent(prev_likes, cur_likes)
+cur_followers = get_insight("page_follows", fb_cur_since, fb_cur_until)
+prev_followers = get_insight("page_follows", fb_prev_since, fb_prev_until)
+followers_percent = safe_percent(prev_followers, cur_followers)
+cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
+prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
+cur_posts = len(cur_posts_list)
+prev_posts = len(prev_posts_list)
+posts_percent = safe_percent(prev_posts, cur_posts)
+
+fb_circles = [
+    {
+        "title": "Page Impressions",
+        "value": cur_impressions,
+        "delta": impressions_percent,
+        "color": "#2d448d",
+    },
+    {
+        "title": "Page Likes",
+        "value": cur_likes,
+        "delta": likes_percent,
+        "color": "#a6ce39",
+    },
+    {
+        "title": "Page Followers",
+        "value": cur_followers,
+        "delta": followers_percent,
+        "color": "#459fda",
+    },
+    {
+        "title": "Posts (This Month)",
+        "value": cur_posts,
+        "delta": posts_percent,
+        "color": "#d178a9",
+    }
+]
+
+fb_tooltips = [
+    "The total number of times any content from your Facebook page was displayed to users (impressions) during the selected period.",
+    "The total number of likes your Facebook page has received during the selected period.",
+    "The number of followers of your Facebook page during the selected period.",
+    "Total posts published on your Facebook page this month."
+]
+
+st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
+
+fb_cols = st.columns(4)
+for i, col in enumerate(fb_cols):
+    entry = fb_circles[i]
+    icon, colr = get_delta_icon_and_color(entry["delta"])
+    delta_val = abs(round(entry["delta"], 2))
+    delta_str = f"{icon} {delta_val:.2f}%" if icon else f"{delta_val:.2f}%"
+    delta_class = "fb-delta-up" if entry["delta"] > 0 else ("fb-delta-down" if entry["delta"] < 0 else "fb-delta-same")
+    with col:
+        st.markdown(
+            f"""
+            <div class="fb-metric-card">
+                <div class="fb-metric-label">{entry["title"]}
+                    <span class='tooltip'>
+                        <span class='questionmark'>?</span>
+                        <span class='tooltiptext'>{fb_tooltips[i]}</span>
+                    </span>
+                </div>
+                <div class="fb-animated-circle" style="background:{entry['color']};">
+                    <span>{entry["value"]}</span>
+                </div>
+                <div class="fb-delta-row">
+                    <span class="{delta_class}">{delta_str}</span>
+                    <span class="fb-delta-note">(vs. Previous Month)</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+if all(x["value"] == 0 for x in fb_circles):
+    st.warning("No data detected for any metric. If your Facebook page is new, or if your API token is missing permissions, you may see zeros. Double-check your Facebook access token, permissions, and that your page has analytics data.")
+
+month_title = fb_cur_start.strftime('%B %Y')
+st.markdown(f"<h3 style='color:#2d448d;'>Number of Post in {month_title}</h3>", unsafe_allow_html=True)
+
+if fb_circles[3]['value'] > 0:
+    post_table = []
+    for idx, post in enumerate(cur_posts_list, 1):
+        post_id = post["id"]
+        message = post.get("message", "")
+        title_text = (message[:50] + "...") if len(message) > 50 else message
+        title_html = f"<b>{title_text}</b>"
+        created_time = datetime.strptime(
+            post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
+        ).strftime("%-d %b %Y")
+        likes = get_post_likes(post_id, ACCESS_TOKEN)
+        post_table.append({
+            "Post Count": idx,
+            "Post Title": title_html,
+            "Date & time": created_time,
+            "Post Likes": likes
+        })
+    df = pd.DataFrame(post_table)
+    st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+else:
+    st.info("No posts published this month.")
+st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
+
+
+# =========================
+# YOUTUBE API CONFIGURATION
+# =========================
+
+def get_access_token(client_id, client_secret, refresh_token):
+    """Dynamically fetches an access token using your refresh_token."""
+    if not refresh_token or refresh_token == "YOUR_REFRESH_TOKEN":
+        st.error(
+            "Missing refresh token! Please generate a new refresh token using the OAuth flow "
+            "and add it to your .streamlit/secrets.toml under [youtube]."
+        )
+        st.stop()
+    url = "https://oauth2.googleapis.com/token"
+    data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token"
+    }
+    response = requests.post(url, data=data)
+    if response.status_code != 200:
+        st.error(f"OAuth error: {response.text}")
+        st.stop()
+    return response.json()["access_token"]
+
+def get_auth_headers(access_token):
+    """Sets headers for OAuth requests."""
+    return {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+
+def get_date_ranges():
+    """Gets start and end dates for current and previous period (monthly granularity)."""
+    today = date.today()
+    start_cur = today.replace(day=1)
+    end_cur = today
+    start_prev = (start_cur - timedelta(days=1)).replace(day=1)
+    end_prev = start_cur - timedelta(days=1)
+    return start_cur, end_cur, start_prev, end_prev
+
+# Read credentials from Streamlit secrets
+client_id = st.secrets["youtube"].get("client_id", "YOUR_CLIENT_ID")
+client_secret = st.secrets["youtube"].get("client_secret", "YOUR_CLIENT_SECRET")
+refresh_token = st.secrets["youtube"].get("refresh_token", "YOUR_REFRESH_TOKEN")
+
+ACCESS_TOKEN = get_access_token(client_id, client_secret, refresh_token)
+
+# =========================
+# 1. CHANNEL OVERVIEW METRICS
+# =========================
+def get_channel_stats():
+    # Get channel statistics (subscribers, total views, video count)
+    url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={CHANNEL_ID}&key={YOUTUBE_API_KEY}"
+    resp = requests.get(url).json()
+    stats = resp["items"][0]["statistics"]
+    return {
+        "subs": int(stats.get("subscriberCount", 0)),
+        "views": int(stats.get("viewCount", 0)),
+        "video_count": int(stats.get("videoCount", 0)),
+    }
+
+def get_yt_analytics_overview(start_date, end_date):
+    # Get watch time and views for the given period using YouTube Analytics API
+    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date.strftime("%Y-%m-%d"),
+        "endDate": end_date.strftime("%Y-%m-%d"),
+        "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
+        "dimensions": "day",
+    }
+    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    # Aggregate totals
+    if "rows" not in resp:
+        return {"views": 0, "watch_time": 0, "subs_gained": 0, "subs_lost": 0}
+    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
+    totals = {
+        "views": int(df["views"].sum()),
+        "watch_time": int(df["estimatedMinutesWatched"].sum()),
+        "subs_gained": int(df["subscribersGained"].sum()),
+        "subs_lost": int(df["subscribersLost"].sum()),
+    }
+    return totals
+
+def get_delta(current, previous):
+    return (current - previous) / previous * 100 if previous else 0
+
+# Fetch date ranges for analytics
+start_cur, end_cur, start_prev, end_prev = get_date_ranges()
+
+# Fetch current and previous period analytics
+overview_cur = get_yt_analytics_overview(start_cur, end_cur)
+overview_prev = get_yt_analytics_overview(start_prev, end_prev)
+channel_stats = get_channel_stats()
+
+# Compute deltas
+subs_delta = get_delta(overview_cur["subs_gained"] - overview_cur["subs_lost"],
+                       overview_prev["subs_gained"] - overview_prev["subs_lost"])
+views_delta = get_delta(overview_cur["views"], overview_prev["views"])
+watch_delta = get_delta(overview_cur["watch_time"], overview_prev["watch_time"])
+
+# =========================
+# DESIGN: CHANNEL OVERVIEW ROW
+# =========================
+st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
+overview_cols = st.columns(3)
+overview_metrics = [
+    {
+        "label": "Subscribers (Net)",
+        "value": overview_cur["subs_gained"] - overview_cur["subs_lost"],
+        "delta": subs_delta,
+        "color": "#e67e22"
+    },
+    {
+        "label": "Total Views",
+        "value": overview_cur["views"],
+        "delta": views_delta,
+        "color": "#3498db"
+    },
+    {
+        "label": "Watch Time (min)",
+        "value": overview_cur["watch_time"],
+        "delta": watch_delta,
+        "color": "#16a085"
+    },
+]
+for i, col in enumerate(overview_cols):
+    metric = overview_metrics[i]
+    delta_sym = "↑" if metric["delta"] >= 0 else "↓"
+    delta_col = "#2ecc40" if metric["delta"] >= 0 else "#ff4136"
+    with col:
+        st.markdown(
+            f"""
+            <div style='text-align:center; font-weight:500; font-size:21px; margin-bottom:0.2em'>
+                {metric["label"]}
+            </div>
+            <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:80px;'>
+                <div style='background:{metric["color"]}; border-radius:50%; width:70px; height:70px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.10);'>
+                    <span style='color:white; font-size:1.2em; font-family: Fira Code, monospace; font-weight:500;'>{metric["value"]}</span>
+                </div>
+            </div>
+            <div style='text-align:center; font-size:15px; margin-top:0.3em; color:{delta_col}; font-weight:500'>
+                {delta_sym} {abs(metric["delta"]):.2f}% <span style='color:#666;'>(vs previous month)</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+# =========================
+# 2. TOP 5 VIDEOS SECTION
+# =========================
+def get_top_videos(start_date, end_date, max_results=5):
+    # Get videos uploaded by the channel
+    video_url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={CHANNEL_ID}&part=id&order=date&type=video&maxResults=50"
+    resp = requests.get(video_url).json()
+    video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
+    if not video_ids:
+        return pd.DataFrame()
+    # Get video stats for each video
+    stats_url = f"https://www.googleapis.com/youtube/v3/videos?key={YOUTUBE_API_KEY}&id={','.join(video_ids)}&part=snippet,statistics"
+    stats_resp = requests.get(stats_url).json()
+    data = []
+    for item in stats_resp.get("items", []):
+        published = item["snippet"]["publishedAt"][:10]
+        vid_id = item["id"]
+        title = item["snippet"]["title"][:60]
+        views = int(item["statistics"].get("viewCount", 0))
+        likes = int(item["statistics"].get("likeCount", 0))
+        comments = int(item["statistics"].get("commentCount", 0))
+        data.append({"id": vid_id, "title": title, "published": published, "views": views, "likes": likes, "comments": comments})
+    # Sort by views in the given period
+    df = pd.DataFrame(data).sort_values("views", ascending=False).head(max_results)
+    # Add watch time for each video via Analytics API
+    ids = list(df["id"])
+    if not ids:
+        return df
+    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date.strftime("%Y-%m-%d"),
+        "endDate": end_date.strftime("%Y-%m-%d"),
+        "metrics": "estimatedMinutesWatched,views,likes,comments",
+        "dimensions": "video",
+        "filters": f"video=={','.join(ids)}"
+    }
+    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    if "rows" not in resp:
+        df["watch_time"] = 0
+    else:
+        wt_dict = {row[0]: row[1] for row in resp["rows"]}
+        df["watch_time"] = df["id"].map(wt_dict).fillna(0)
+    return df
+
+# Fetch top 5 videos for current period
+top_videos_df = get_top_videos(start_cur, end_cur, max_results=5)
+
+# =========================
+# DESIGN: TOP 5 VIDEOS ROW
+# =========================
+st.markdown('<div class="section-header">Top 5 Videos (Current Period)</div>', unsafe_allow_html=True)
+if not top_videos_df.empty:
+    st.markdown("""
+    <style>
+    .yt-table th, .yt-table td {padding: 7px 13px; font-size: 1.01em;}
+    .yt-table th {background: #2d448d; color:#fff;}
+    .yt-table tr:nth-child(even) {background: #f3f3f3;}
+    .yt-table tr:nth-child(odd) {background: #fff;}
+    </style>
+    """, unsafe_allow_html=True)
+    display_df = top_videos_df[["title", "views", "watch_time", "likes", "comments"]].copy()
+    display_df.columns = ["Title", "Views", "Watch Time (min)", "Likes", "Comments"]
+    st.markdown(display_df.to_html(index=False, classes="yt-table"), unsafe_allow_html=True)
+else:
+    st.info("No video data found for this period.")
+
+# =========================
+# 3. TRAFFIC SOURCES PIE CHART
+# =========================
+def get_traffic_sources(start_date, end_date):
+    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date.strftime("%Y-%m-%d"),
+        "endDate": end_date.strftime("%Y-%m-%d"),
+        "metrics": "views",
+        "dimensions": "insightTrafficSourceType",
+    }
+    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    if "rows" not in resp:
+        return pd.DataFrame()
+    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
+    df["views"] = df["views"].astype(int)
+    return df
+
+# Fetch traffic sources data
+traf_src_df = get_traffic_sources(start_cur, end_cur)
+
+# =========================
+# DESIGN: TRAFFIC SOURCES PIE CHART ROW
+# =========================
+st.markdown('<div class="section-header">Traffic Sources</div>', unsafe_allow_html=True)
+if not traf_src_df.empty:
+    pie_fig = px.pie(traf_src_df, values="views", names="insightTrafficSourceType",
+                     color_discrete_sequence=px.colors.sequential.Plasma,
+                     title="Views by Traffic Source", hole=0.45)
+    pie_fig.update_traces(textinfo='percent+label', pull=[0.05]*len(traf_src_df))
+    st.plotly_chart(pie_fig, use_container_width=True)
+else:
+    st.info("No traffic source data available.")
+
+# =========================
+# 4. TRENDS OVER TIME (LINE CHARTS)
+# =========================
+def get_trends_over_time(start_date, end_date):
+    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date.strftime("%Y-%m-%d"),
+        "endDate": end_date.strftime("%Y-%m-%d"),
+        "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
+        "dimensions": "day",
+    }
+    resp = requests.get(endpoint, headers=get_auth_headers(), params=params).json()
+    if "rows" not in resp:
+        return pd.DataFrame()
+    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
+    df["date"] = pd.to_datetime(df["day"])
+    df["views"] = df["views"].astype(int)
+    df["watch_time"] = df["estimatedMinutesWatched"].astype(int)
+    df["subs"] = df["subscribersGained"].astype(int) - df["subscribersLost"].astype(int)
+    return df
+
+# Fetch trend data for the last 60 days for richer chart
+trend_df = get_trends_over_time(start_cur - datetime.timedelta(days=59), end_cur)
+
+# =========================
+# DESIGN: TRENDS OVER TIME ROW
+# =========================
+st.markdown('<div class="section-header">Trends Over Time</div>', unsafe_allow_html=True)
+if not trend_df.empty:
+    tr_cols = st.columns(3)
+    with tr_cols[0]:
+        fig1 = px.line(trend_df, x="date", y="views", title="Views (Last 60 days)", markers=True)
+        fig1.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
+        st.plotly_chart(fig1, use_container_width=True)
+    with tr_cols[1]:
+        fig2 = px.line(trend_df, x="date", y="watch_time", title="Watch Time (min)", markers=True)
+        fig2.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
+        st.plotly_chart(fig2, use_container_width=True)
+    with tr_cols[2]:
+        fig3 = px.line(trend_df, x="date", y="subs", title="Net Subscribers", markers=True)
+        fig3.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
+        st.plotly_chart(fig3, use_container_width=True)
+else:
+    st.info("No trend data available.")
+
+# =========================
+# FOOTNOTE / DATA UPDATE INFO
+# =========================
+st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
+
+st.caption("All data is pulled live from Instagram Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
 # END OF DASHBOARD
+from google_auth_oauthlib.flow import InstalledAppFlow
+
+# Required scopes for YouTube Data and Analytics APIs
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly"
+]
+
+# Run the OAuth2 flow, will open a browser for consent
+flow = InstalledAppFlow.from_client_secrets_file(
+    'client_secret.json', SCOPES
+)
+creds = flow.run_local_server(port=0)
+
+print("Access token:", creds.token)
+print("Refresh token:", creds.refresh_token)
+print("Client ID:", creds.client_id)
+print("Client Secret:", creds.client_secret)
+
