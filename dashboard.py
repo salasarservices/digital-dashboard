@@ -405,9 +405,7 @@ with st.sidebar:
     # Logo at the top
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
     st.markdown("### SALASAR DIGITAL MARKETING DASHBOARD")
- # ------ SIDE BAR LOGIC NEW --- 
- st.session_state["sidebar_section"]
-
+    
     # --- FILTERS: Month selection (unchanged logic) ---
     month_options = get_month_options()
     if "selected_month" not in st.session_state:
@@ -426,19 +424,14 @@ with st.sidebar:
     # Main navigation buttons
     if st.button("WEBSITE ANALYTICS"):
         st.session_state["sidebar_section"] = "WEBSITE ANALYTICS"
-
     if st.button("LEADS DASHBOARD"):
         st.session_state["sidebar_section"] = "LEADS DASHBOARD"
-
     if st.button("LINKEDIN ANALYTICS"):
         st.session_state["sidebar_section"] = "LINKEDIN ANALYTICS"
-
     if st.button("FACEBOOK ANALYTICS"):
         st.session_state["sidebar_section"] = "FACEBOOK ANALYTICS"
-
     if st.button("INSTAGRAM ANALYTICS"):
         st.session_state["sidebar_section"] = "INSTAGRAM ANALYTICS"
-
     if st.button("YOUTUBE ANALYTICS"):
         st.session_state["sidebar_section"] = "YOUTUBE ANALYTICS"
 
