@@ -466,7 +466,7 @@ with st.sidebar:
 # =========================
 section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
 if section == "WEBSITE ANALYTICS":
-    st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
+    st.write("Website Analytics")
 # =========================
 # WEBSITE PERFORMANCE SECTION
 # =========================
@@ -666,12 +666,10 @@ with col2:
     render_table(traf_df)
 
 elif section == "LEADS DASHBOARD":
-    # --- LEADS DASHBOARD SECTION ---
-    st.markdown("## Leads Dashboard")
-    # =========================
+    st.write("Leads Dashboard")
+# =========================
 # LEADS SECTION
 # =========================
-
 def get_leads_from_mongodb():
     try:
         mongo_uri = st.secrets["mongo_uri"]
@@ -977,12 +975,10 @@ else:
 
 
 elif section == "FACEBOOK ANALYTICS":
-    # --- FACEBOOK ANALYTICS SECTION ---
-    st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
-    # =========================
+    st.write("Facebook Analytics")
+# =========================
 # FACEBOOK ANALYTICS
 # =========================
-
 PAGE_ID = st.secrets["facebook"]["page_id"]
 ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
 
@@ -1174,12 +1170,10 @@ st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are 
 
 
 elif section == "YOUTUBE ANALYTICS":
-    # --- YOUTUBE ANALYTICS SECTION ---
-    st.markdown('<div class="section-header">YouTube Channel Overview</div>', unsafe_allow_html=True)
-    # =========================
+    st.write("YouTube Analytics")
+# =========================
 # YOUTUBE ANALYTICS
 # =========================
-
 def get_access_token(client_id, client_secret, refresh_token):
     """Dynamically fetches an access token using your refresh_token."""
     if not refresh_token or refresh_token == "YOUR_REFRESH_TOKEN":
@@ -1514,12 +1508,14 @@ st.caption("All YouTube metrics are updated live from YouTube Data & Analytics A
 
 
 elif section == "LINKEDIN ANALYTICS":
+    st.write("LinkedIn Analytics")
     # --- LINKEDIN ANALYTICS SECTION ---
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
     # ... all code for LinkedIn Analytics section ...
     # (Paste your full original linkedin analytics code blocks here.)
 
 elif section == "INSTAGRAM ANALYTICS":
+    st.write("Instagram Analytics")
     # --- INSTAGRAM ANALYTICS SECTION ---
     st.markdown('<div class="section-header">Instagram Analytics</div>', unsafe_allow_html=True)
     # ... all code for Instagram Analytics section ...
