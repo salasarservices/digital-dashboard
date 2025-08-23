@@ -252,7 +252,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
 # =========================
 # HELPER AND DATA FUNCTIONS
 # =========================
@@ -399,7 +398,6 @@ def country_name_to_code(name):
             if name.lower() in country.name.lower():
                 return country.alpha_2.lower()
         return None
-
 # =========================
 # SIDEBAR & FILTERS
 # =========================
@@ -460,16 +458,15 @@ with st.sidebar:
 
     if st.button("FLUSH MONGO"):
         flush_mongo_database()
-
 # =========================
 # SECTION RENDERING LOGIC (UPDATED)
+# =========================
+# =========================
+# WEBSITE PERFORMANCE SECTION
 # =========================
 section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
 if section == "WEBSITE ANALYTICS":
     st.write("Website Analytics")
-# =========================
-# WEBSITE PERFORMANCE SECTION
-# =========================
 st.markdown('<div class="section-header">Website Performance</div>', unsafe_allow_html=True)
 cols_perf = st.columns(3)
 animation_duration = 0.5
@@ -523,7 +520,6 @@ for i, col in enumerate(cols_perf):
             f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_delta_text}</div>",
             unsafe_allow_html=True
         )
-
 # =========================
 # TOP CONTENT SECTION
 # =========================
@@ -542,12 +538,10 @@ def render_top_content_table(data):
     else:
         st.warning("No top content data available for this period.")
 render_top_content_table(top_content_data)
-
 # =========================
 # WEBSITE ANALYTICS SECTION
 # =========================
 st.markdown('<div class="section-header">Website Analytics</div>', unsafe_allow_html=True)
-
 circle_colors = ["#2d448d", "#a6ce39", "#459fda"]
 titles = [
     "Total Users",
@@ -601,7 +595,6 @@ for i, col in enumerate(cols):
             f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(deltas[i]):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
             unsafe_allow_html=True
         )
-
 # =========================
 # NEW VS RETURNING USERS SECTION
 # =========================
@@ -664,12 +657,11 @@ with col1:
 with col2:
     st.subheader('Traffic Acquisition by Channel')
     render_table(traf_df)
-
-elif section == "LEADS DASHBOARD":
-    st.write("Leads Dashboard")
 # =========================
 # LEADS SECTION
 # =========================
+elif section == "LEADS DASHBOARD":
+    st.write("Leads Dashboard")
 def get_leads_from_mongodb():
     try:
         mongo_uri = st.secrets["mongo_uri"]
