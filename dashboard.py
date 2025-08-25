@@ -1868,72 +1868,7 @@ if not top_videos_df.empty:
 else:
     st.info("No video data found for this period.")
 
-def get_traffic_sources(start_date, end_date):
-    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date.strftime("%Y-%m-%d"),
-        "endDate": end_date.strftime("%Y-%m-%d"),
-        "metrics": "views",
-        "dimensions": "insightTrafficSourceType",
-    }
-    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-    if "rows" not in resp:
-        return pd.DataFrame()
-    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
-    df["views"] = df["views"].astype(int)
-    return df
 
-traf_src_df = get_traffic_sources(start_cur, end_cur)
-
-st.markdown('<div class="section-header">Traffic Sources</div>', unsafe_allow_html=True)
-if not traf_src_df.empty:
-    pie_fig = px.pie(traf_src_df, values="views", names="insightTrafficSourceType",
-                     color_discrete_sequence=px.colors.sequential.Plasma,
-                     title="Views by Traffic Source", hole=0.45)
-    pie_fig.update_traces(textinfo='percent+label', pull=[0.05]*len(traf_src_df))
-    st.plotly_chart(pie_fig, use_container_width=True)
-else:
-    st.info("No traffic source data available.")
-
-def get_trends_over_time(start_date, end_date):
-    endpoint = "https://youtubeanalytics.googleapis.com/v2/reports"
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date.strftime("%Y-%m-%d"),
-        "endDate": end_date.strftime("%Y-%m-%d"),
-        "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
-        "dimensions": "day",
-    }
-    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
-    if "rows" not in resp:
-        return pd.DataFrame()
-    df = pd.DataFrame(resp["rows"], columns=[c["name"] for c in resp["columnHeaders"]])
-    df["date"] = pd.to_datetime(df["day"])
-    df["views"] = df["views"].astype(int)
-    df["watch_time"] = df["estimatedMinutesWatched"].astype(int)
-    df["subs"] = df["subscribersGained"].astype(int) - df["subscribersLost"].astype(int)
-    return df
-
-trend_df = get_trends_over_time(start_cur - timedelta(days=59), end_cur)
-
-st.markdown('<div class="section-header">Trends Over Time</div>', unsafe_allow_html=True)
-if not trend_df.empty:
-    tr_cols = st.columns(3)
-    with tr_cols[0]:
-        fig1 = px.line(trend_df, x="date", y="views", title="Views (Last 60 days)", markers=True)
-        fig1.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-        st.plotly_chart(fig1, use_container_width=True)
-    with tr_cols[1]:
-        fig2 = px.line(trend_df, x="date", y="watch_time", title="Watch Time (min)", markers=True)
-        fig2.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-        st.plotly_chart(fig2, use_container_width=True)
-    with tr_cols[2]:
-        fig3 = px.line(trend_df, x="date", y="subs", title="Net Subscribers", markers=True)
-        fig3.update_layout(height=290, margin=dict(l=10, r=10, b=25, t=40))
-        st.plotly_chart(fig3, use_container_width=True)
-else:
-    st.info("No trend data available.")
 
 st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
 
