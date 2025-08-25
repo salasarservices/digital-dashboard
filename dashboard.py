@@ -1304,7 +1304,7 @@ else:
 
 def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
- render_linkedin_analytics()
+render_linkedin_analytics()
     
     # Mongo connection (update as needed)
     mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
