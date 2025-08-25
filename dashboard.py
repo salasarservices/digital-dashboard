@@ -403,23 +403,6 @@ def country_name_to_code(name):
 # SIDEBAR & FILTERS
 # =========================
 with st.sidebar:
-    # --- SECTION SELECTOR ---
-    section_options = [
-        "WEBSITE ANALYTICS",
-        "LEADS DASHBOARD",
-        "LINKEDIN ANALYTICS",
-        # add other sections as needed...
-    ]
-    if "sidebar_section" not in st.session_state:
-        st.session_state["sidebar_section"] = section_options[0]
-    selected_section = st.radio(
-        "Select Dashboard Section:", section_options,
-        index=section_options.index(st.session_state["sidebar_section"])
-    )
-    if selected_section != st.session_state["sidebar_section"]:
-        st.session_state["sidebar_section"] = selected_section
-
-    # --- your existing sidebar code follows here ---
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
     st.title('Report Filters')
 
@@ -478,6 +461,7 @@ with st.sidebar:
             st.error(f"Could not flush database: {e}")
             return False
 
+    # Place the flush button RIGHT after the "Refresh Data" button and BEFORE the PDF button!
     flush_btn = st.button("Flush Mongo 🗑️")
     if flush_btn:
         if flush_mongo_database():
@@ -1320,6 +1304,7 @@ else:
 
 def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
+ render_linkedin_analytics()
     
     # Mongo connection (update as needed)
     mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
