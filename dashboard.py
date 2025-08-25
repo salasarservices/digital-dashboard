@@ -446,44 +446,9 @@ with st.sidebar:
         st.session_state["selected_month"] = month_options[-1]
         st.session_state["refresh"] = True
 
- # --- TEMP ----
- def render_linkedin_analytics():
-    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
-    try:
-        mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-        db_name = "sallnkddata"
-        collection_name = "lnkddata"
-        st.write("Connecting to LinkedIn MongoDB...")  # Debug
-        client = MongoClient(mongo_uri_linkedin)
-        db = client[db_name]
-        col = db[collection_name]
-        data = list(col.find({}))
-        st.write(f"Fetched {len(data)} records from MongoDB")  # Debug
-        if not data:
-            st.info("No LinkedIn analytics data found in MongoDB.")
-            return
-        df = pd.DataFrame(data)
-        st.write("DataFrame columns:", df.columns.tolist())  # Debug
-        if "Date" not in df.columns:
-            st.error("No 'Date' column found in LinkedIn analytics collection.")
-            st.write(df.head())
-            return
-        # ...rest of your LinkedIn analytics code...
-    except Exception as e:
-        st.error(f"Error in LinkedIn section: {e}")
 
-# --- Section selection logic ---
+def render_linkedin_analytics():
 
-section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
-render_functions = {
-    "WEBSITE ANALYTICS": render_website_analytics,
-    "LEADS DASHBOARD": render_leads_dashboard,
-    "LINKEDIN ANALYTICS": render_linkedin_analytics,
-    # ...other sections...
-}
-render_func = render_functions.get(section)
-if render_func:
-    render_func()
 
     # --- FLUSH DATABASE FUNCTION ---
     def flush_mongo_database():
