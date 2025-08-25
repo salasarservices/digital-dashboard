@@ -476,18 +476,6 @@ if st.session_state.get("refresh", False):
     st.rerun()
 
 # =========================
-# SECTION DISPATCH LOGIC
-# =========================
-
-section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
-if section == "WEBSITE ANALYTICS":
-    render_website_analytics()
-elif section == "LEADS DASHBOARD":
-    render_leads_dashboard()
-elif section == "LINKEDIN ANALYTICS":
-    render_linkedin_analytics()
-
-# =========================
 # AUTHENTICATION & CONFIG
 # =========================
 SCOPES = [
@@ -1304,9 +1292,9 @@ else:
 
 def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
-render_linkedin_analytics()
+    
     # Mongo connection (update as needed)
-mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+    mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
     db_name = "sallnkddata"           # <-- use your actual DB name
     collection_name = "lnkddata"      # <-- use your actual collection name
     client = MongoClient(mongo_uri_linkedin)
@@ -1410,7 +1398,7 @@ mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
                 unsafe_allow_html=True,
             )
 
-# Call the function to render the LinkedIn Analytics section
+# Call the function (make sure this is left-aligned, no indentation)
 render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
