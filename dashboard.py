@@ -1294,12 +1294,12 @@ def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
     
     # Mongo connection (update as needed)
-    mongo_uri = st.secrets["mongo_uri_linkedin"]
-    db_name = "your_db_name"
-    collection_name = "your_collection_name"
+    mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+    db_name = "sallnkddata"           # <-- use your actual DB name
+    collection_name = "lnkddata"      # <-- use your actual collection name
     client = MongoClient(mongo_uri_linkedin)
-    db = client[sallnkddata]
-    col = db[lnkddata]
+    db = client[db_name]
+    col = db[collection_name]
     data = list(col.find({}))
     if not data:
         st.info("No LinkedIn analytics data found in MongoDB.")
