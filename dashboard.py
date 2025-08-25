@@ -446,10 +446,6 @@ with st.sidebar:
         st.session_state["selected_month"] = month_options[-1]
         st.session_state["refresh"] = True
 
-
-def render_linkedin_analytics():
-
-
     # --- FLUSH DATABASE FUNCTION ---
     def flush_mongo_database():
         try:
