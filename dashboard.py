@@ -1287,6 +1287,118 @@ else:
 # =========================
 
 # =========================
+# LINKEDIN ANALYTICS
+# =========================
+
+def render_linkedin_analytics():
+    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
+    
+    # Mongo connection (update as needed)
+    mongo_uri = st.secrets["mongo_uri"]
+    db_name = "your_db_name"
+    collection_name = "your_collection_name"
+    client = MongoClient(mongo_uri)
+    db = client[db_name]
+    col = db[collection_name]
+    data = list(col.find({}))
+    if not data:
+        st.info("No LinkedIn analytics data found in MongoDB.")
+        return
+    
+    df = pd.DataFrame(data)
+    if "Date" not in df.columns:
+        st.error("No 'Date' column found in LinkedIn analytics collection.")
+        return
+
+    # Convert Date to pandas datetime
+    df["Date"] = pd.to_datetime(df["Date"])
+    df["Month"] = df["Date"].dt.to_period("M")
+
+    # Metrics to show
+    metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Engagement"]
+    pastel_colors = ["#f7cac9", "#b5ead7", "#b8e0fc", "#f9e79f", "#e2c2fc"]
+
+    # Group by Month
+    month_totals = df.groupby("Month")[metric_names].sum().sort_index()
+    if len(month_totals) < 2:
+        st.warning("Not enough data to show month-on-month comparison.")
+        return
+
+    # Latest and previous periods
+    months = month_totals.index.tolist()
+    cur_month, prev_month = months[-1], months[-2]
+    cur_data, prev_data = month_totals.loc[cur_month], month_totals.loc[prev_month]
+
+    st.markdown(
+        f"<div style='font-size:1.3em;margin-bottom:8px;'>Current Month: <b style='color:#2d448d'>{cur_month}</b> &nbsp;&nbsp; Previous Month: <b style='color:#b8b8b8'>{prev_month}</b></div>",
+        unsafe_allow_html=True,
+    )
+
+    # Show metrics
+    cols = st.columns(len(metric_names))
+    for i, (metric, color) in enumerate(zip(metric_names, pastel_colors)):
+        cur_val = int(cur_data.get(metric, 0))
+        prev_val = int(prev_data.get(metric, 0))
+        # Calculate delta %
+        if prev_val == 0:
+            pct = 100.0 if cur_val > 0 else 0.0
+        else:
+            pct = ((cur_val - prev_val) / prev_val) * 100
+        arrow = "↑" if pct > 0 else ("↓" if pct < 0 else "")
+        pct_color = "#2ecc40" if pct > 0 else ("#ff4136" if pct < 0 else "#888")
+        delta_str = f"{arrow} {abs(pct):.1f}%"
+        # Zoom-in hover animation CSS
+        st.markdown(
+            f"""
+            <style>
+            .metric-circle-{i} {{
+                background: {color};
+                border-radius: 50%;
+                width: 90px;
+                height: 90px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 0.6em auto;
+                font-size: 2em;
+                font-weight: bold;
+                transition: transform 0.18s cubic-bezier(.4,2,.55,.44);
+                box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+                cursor:pointer;
+            }}
+            .metric-circle-{i}:hover {{
+                transform: scale(1.13);
+                box-shadow: 0 8px 24px rgba(44,68,141,0.18);
+            }}
+            .metric-label-{i} {{
+                text-align: center;
+                font-weight: 500;
+                font-size: 1.08em;
+                margin-bottom: 0.25em;
+                color: #2d448d;
+            }}
+            .metric-delta-{i} {{
+                text-align: center;
+                font-size: 1.07em;
+                margin-top: 0.25em;
+                font-weight: 600;
+                color: {pct_color};
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        with cols[i]:
+            st.markdown(
+                f"""
+                <div class="metric-label-{i}">{metric}</div>
+                <div class="metric-circle-{i}">{cur_val}</div>
+                <div class="metric-delta-{i}">{delta_str}</div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+# =========================
 # FACEBOOK ANALYTICS
 # =========================
 
