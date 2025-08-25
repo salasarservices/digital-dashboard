@@ -1290,17 +1290,25 @@ else:
 # LINKEDIN ANALYTICS
 # =========================
 
+def get_last_12_month_options():
+    """Return a list of last 12 months as 'Month YYYY' (latest first)."""
+    today = date.today().replace(day=1)
+    months = [today - relativedelta(months=i) for i in range(12)]
+    return [d.strftime('%B %Y') for d in months]
+
 def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
-    
-    # Mongo connection (update as needed)
-    mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-    db_name = "sallnkddata"           # <-- use your actual DB name
-    collection_name = "lnkddata"      # <-- use your actual collection name
-    client = MongoClient(mongo_uri_linkedin)
-    db = client[db_name]
-    col = db[collection_name]
-    data = list(col.find({}))
+    try:
+        mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+        db_name = "sallnkddata"
+        collection_name = "lnkddata"
+        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000)
+        db = client[db_name]
+        col = db[collection_name]
+        data = list(col.find({}))
+    except Exception as e:
+        st.error(f"Could not connect to LinkedIn MongoDB: {e}")
+        return
     if not data:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
@@ -1314,23 +1322,33 @@ def render_linkedin_analytics():
     df["Date"] = pd.to_datetime(df["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
 
+    # --- Month selection dropdown ---
+    month_options = get_last_12_month_options()
+    selected_month_str = st.selectbox("Select Month:", month_options, index=0)
+    selected_month = datetime.strptime(selected_month_str, "%B %Y").date().replace(day=1)
+    selected_period = selected_month.strftime('%Y-%m')
+    prev_period_dt = (selected_month - relativedelta(months=1))
+    prev_period = prev_period_dt.strftime('%Y-%m')
+
     # Metrics to show
     metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Engagement"]
     pastel_colors = ["#f7cac9", "#b5ead7", "#b8e0fc", "#f9e79f", "#e2c2fc"]
 
     # Group by Month
     month_totals = df.groupby("Month")[metric_names].sum().sort_index()
-    if len(month_totals) < 2:
-        st.warning("Not enough data to show month-on-month comparison.")
+    months = [str(m) for m in month_totals.index]
+    if selected_period not in months:
+        st.warning(f"No data for {selected_month_str}.")
+        return
+    if prev_period not in months:
+        st.warning(f"No data for previous month ({prev_period_dt.strftime('%B %Y')}).")
         return
 
-    # Latest and previous periods
-    months = month_totals.index.tolist()
-    cur_month, prev_month = months[-1], months[-2]
-    cur_data, prev_data = month_totals.loc[cur_month], month_totals.loc[prev_month]
+    cur_data = month_totals.loc[selected_period]
+    prev_data = month_totals.loc[prev_period]
 
     st.markdown(
-        f"<div style='font-size:1.3em;margin-bottom:8px;'>Current Month: <b style='color:#2d448d'>{cur_month}</b> &nbsp;&nbsp; Previous Month: <b style='color:#b8b8b8'>{prev_month}</b></div>",
+        f"<div style='font-size:1.3em;margin-bottom:8px;'>Current Month: <b style='color:#2d448d'>{selected_period}</b> &nbsp;&nbsp; Previous Month: <b style='color:#b8b8b8'>{prev_period}</b></div>",
         unsafe_allow_html=True,
     )
 
@@ -1398,7 +1416,7 @@ def render_linkedin_analytics():
                 unsafe_allow_html=True,
             )
 
-# Call the function (make sure this is left-aligned, no indentation)
+# Call the function (left-aligned, NOT indented)
 render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
