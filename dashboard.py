@@ -1306,7 +1306,7 @@ def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
 render_linkedin_analytics()
     # Mongo connection (update as needed)
-    mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
     db_name = "sallnkddata"           # <-- use your actual DB name
     collection_name = "lnkddata"      # <-- use your actual collection name
     client = MongoClient(mongo_uri_linkedin)
