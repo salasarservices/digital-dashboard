@@ -403,6 +403,23 @@ def country_name_to_code(name):
 # SIDEBAR & FILTERS
 # =========================
 with st.sidebar:
+    # --- SECTION SELECTOR ---
+    section_options = [
+        "WEBSITE ANALYTICS",
+        "LEADS DASHBOARD",
+        "LINKEDIN ANALYTICS",
+        # add other sections as needed...
+    ]
+    if "sidebar_section" not in st.session_state:
+        st.session_state["sidebar_section"] = section_options[0]
+    selected_section = st.radio(
+        "Select Dashboard Section:", section_options,
+        index=section_options.index(st.session_state["sidebar_section"])
+    )
+    if selected_section != st.session_state["sidebar_section"]:
+        st.session_state["sidebar_section"] = selected_section
+
+    # --- your existing sidebar code follows here ---
     st.image("https://www.salasarservices.com/assets/Frontend/images/logo-black.png", width=170)
     st.title('Report Filters')
 
@@ -461,7 +478,6 @@ with st.sidebar:
             st.error(f"Could not flush database: {e}")
             return False
 
-    # Place the flush button RIGHT after the "Refresh Data" button and BEFORE the PDF button!
     flush_btn = st.button("Flush Mongo 🗑️")
     if flush_btn:
         if flush_mongo_database():
@@ -474,6 +490,18 @@ with st.sidebar:
 if st.session_state.get("refresh", False):
     st.session_state["refresh"] = False
     st.rerun()
+
+# =========================
+# SECTION DISPATCH LOGIC
+# =========================
+
+section = st.session_state.get("sidebar_section", "WEBSITE ANALYTICS")
+if section == "WEBSITE ANALYTICS":
+    render_website_analytics()
+elif section == "LEADS DASHBOARD":
+    render_leads_dashboard()
+elif section == "LINKEDIN ANALYTICS":
+    render_linkedin_analytics()
 
 # =========================
 # AUTHENTICATION & CONFIG
