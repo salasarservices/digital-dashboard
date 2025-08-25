@@ -1323,15 +1323,15 @@ def render_linkedin_analytics():
     df["Month"] = df["Date"].dt.to_period("M")
 
     # --- Month selection dropdown ---
-month_options = get_last_12_month_options()
-latest_data_month = df["Month"].max()
-latest_data_month_str = latest_data_month.strftime('%B %Y')
-default_index = month_options.index(latest_data_month_str) if latest_data_month_str in month_options else 0
-selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
-selected_month = datetime.strptime(selected_month_str, "%B %Y").date().replace(day=1)
-selected_period = selected_month.strftime('%Y-%m')
-prev_period_dt = (selected_month - relativedelta(months=1))
-prev_period = prev_period_dt.strftime('%Y-%m')
+     month_options = get_last_12_month_options()
+     latest_data_month = df["Month"].max()
+     latest_data_month_str = latest_data_month.strftime('%B %Y')
+     default_index = month_options.index(latest_data_month_str) if latest_data_month_str in month_options else 0
+     selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
+     selected_month = datetime.strptime(selected_month_str, "%B %Y").date().replace(day=1)
+     selected_period = selected_month.strftime('%Y-%m')
+     prev_period_dt = (selected_month - relativedelta(months=1))
+     prev_period = prev_period_dt.strftime('%Y-%m')
 
     # Metrics to show
     metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Engagement"]
