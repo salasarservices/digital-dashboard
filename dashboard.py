@@ -977,9 +977,9 @@ with col2:
 
 def get_leads_from_mongodb():
     try:
-        mongo_uri = st.secrets["mongo_uri"]
+        mongo_uri = st.secrets["mongo_uri_leads"]
         from pymongo import MongoClient
-        client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_uri_leads)
         db = client["sal-leads"]
         leads_collection = db["leads"]
         leads = list(leads_collection.find({}, {"_id": 0}))
@@ -1294,10 +1294,10 @@ def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
     
     # Mongo connection (update as needed)
-    mongo_uri = st.secrets["mongo_uri"]
+    mongo_uri = st.secrets["mongo_uri_linkedin"]
     db_name = "your_db_name"
     collection_name = "your_collection_name"
-    client = MongoClient(mongo_uri)
+    client = MongoClient(mongo_uri_linkedin)
     db = client[sallnkddata]
     col = db[lnkddata]
     data = list(col.find({}))
