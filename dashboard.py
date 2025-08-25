@@ -446,7 +446,7 @@ with st.sidebar:
         st.session_state["selected_month"] = month_options[-1]
         st.session_state["refresh"] = True
 
-    # --- FLUSH DATABASE FUNCTION ---
+    # --- FLUSH LEADS DATABASE FUNCTION ---
     def flush_mongo_database():
         try:
             mongo_uri = st.secrets["mongo_uri"]
@@ -461,13 +461,35 @@ with st.sidebar:
             st.error(f"Could not flush database: {e}")
             return False
 
-    # Place the flush button RIGHT after the "Refresh Data" button and BEFORE the PDF button!
+    # --- FLUSH LINKEDIN DATABASE FUNCTION ---
+    def flush_linkedin_database():
+        try:
+            mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+            db_name = "sallnkddata"  # Use your actual LinkedIn DB name
+            client = MongoClient(mongo_uri_linkedin)
+            db = client[db_name]
+            for collection_name in db.list_collection_names():
+                db[collection_name].delete_many({})
+            client.close()
+            return True
+        except Exception as e:
+            st.error(f"Could not flush LinkedIn database: {e}")
+            return False
+
+    # Place the flush buttons after "Refresh Data" and before the PDF button!
     flush_btn = st.button("Flush Mongo 🗑️")
     if flush_btn:
         if flush_mongo_database():
-            st.success("All data in the database has been deleted!")
+            st.success("All data in the leads database has been deleted!")
         else:
-            st.error("Failed to flush data.")
+            st.error("Failed to flush leads database.")
+
+    flush_linkedin_btn = st.button("Flush Linkedin 🗑️")
+    if flush_linkedin_btn:
+        if flush_linkedin_database():
+            st.success("All data in the LinkedIn database has been deleted!")
+        else:
+            st.error("Failed to flush LinkedIn database.")
 
     pdf_report_btn = st.button("Download PDF Report")
 
@@ -1333,8 +1355,8 @@ def render_linkedin_analytics():
     prev_period_dt = (selected_month - relativedelta(months=1))
     prev_period = prev_period_dt.strftime('%Y-%m')
 
-    # Metrics to show
-    metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Engagement"]
+    # Metrics to show (replaced 'Engagement' with 'Followers')
+    metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Followers"]
     pastel_colors = ["#f7cac9", "#b5ead7", "#b8e0fc", "#f9e79f", "#e2c2fc"]
 
     # Group by Month
