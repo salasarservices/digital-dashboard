@@ -1305,19 +1305,18 @@ else:
 def render_linkedin_analytics():
     st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
 render_linkedin_analytics()
-    
     # Mongo connection (update as needed)
-mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-db_name = "sallnkddata"           # <-- use your actual DB name
-collection_name = "lnkddata"      # <-- use your actual collection name
-client = MongoClient(mongo_uri_linkedin)
-db = client[db_name]
-col = db[collection_name]
-data = list(col.find({}))
-if not data:
+    mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+    db_name = "sallnkddata"           # <-- use your actual DB name
+    collection_name = "lnkddata"      # <-- use your actual collection name
+    client = MongoClient(mongo_uri_linkedin)
+    db = client[db_name]
+    col = db[collection_name]
+    data = list(col.find({}))
+    if not data:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
-    
+
     df = pd.DataFrame(data)
     if "Date" not in df.columns:
         st.error("No 'Date' column found in LinkedIn analytics collection.")
@@ -1411,6 +1410,8 @@ if not data:
                 unsafe_allow_html=True,
             )
 
+# Call the function to render the LinkedIn Analytics section
+render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
