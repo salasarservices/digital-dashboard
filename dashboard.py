@@ -1298,8 +1298,8 @@ def render_linkedin_analytics():
     db_name = "your_db_name"
     collection_name = "your_collection_name"
     client = MongoClient(mongo_uri)
-    db = client[db_name]
-    col = db[collection_name]
+    db = client[sallnkddata]
+    col = db[lnkddata]
     data = list(col.find({}))
     if not data:
         st.info("No LinkedIn analytics data found in MongoDB.")
