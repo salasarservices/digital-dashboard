@@ -977,7 +977,7 @@ with col2:
 
 def get_leads_from_mongodb():
     try:
-        mongo_uri = st.secrets["mongo_uri_leads"]
+        mongo_uri_leads = st.secrets["mongo_uri_leads"]
         from pymongo import MongoClient
         client = MongoClient(mongo_uri_leads)
         db = client["sal-leads"]
