@@ -1446,13 +1446,6 @@ render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
-
-import requests
-import pandas as pd
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
-import streamlit as st
-
 PAGE_ID = st.secrets["facebook"]["page_id"]
 ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
 
@@ -1480,7 +1473,7 @@ def get_total_metric_value(metric, as_of_date):
 
 def get_total_views(as_of_date):
     """Fetch total views as shown in Facebook Insights."""
-    # page_views_total is the metric used for "Views" in the Professional dashboard
+    # page_views_total is the metric used for "Views" in the Professional dashboard (see image4)
     return get_total_metric_value("page_views_total", as_of_date)
 
 def get_posts(since, until):
