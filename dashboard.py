@@ -1441,6 +1441,162 @@ def render_linkedin_analytics():
                 unsafe_allow_html=True,
             )
 
+# --- VISITOR ANALYTICS ----
+import streamlit as st
+from pymongo import MongoClient
+import pandas as pd
+import numpy as np
+import plotly.express as px
+
+# MongoDB setup
+mongo_client = MongoClient(st.secrets["mongo_uri_linkedin"])
+db = mongo_client["sallnkddata2"]
+collection = db["lnkddata2"]
+
+# Utility: Get current month and all previous months
+from datetime import datetime
+
+now = datetime.now()
+cur_month = now.strftime("%Y-%m")
+# You may need to adjust the logic for your date format in the DB
+
+# Fetch data
+data = list(collection.find({}))
+df = pd.DataFrame(data)
+
+# ------------------------------
+# 1. Total Unique Visitors & Delta
+# ------------------------------
+# Assumes 'month' column in YYYY-MM format and 'total_unique_visitors' field exists
+# If your DB structure is different, adapt accordingly
+
+# Current month total
+cur_month_visitors = df[df["month"] == cur_month]["total_unique_visitors"].sum()
+# Previous all months total
+prev_months_visitors = df[df["month"] != cur_month]["total_unique_visitors"].sum()
+# Delta
+delta_visitors = cur_month_visitors - prev_months_visitors
+
+# Delta styling
+delta_icon = "↑" if delta_visitors > 0 else ("↓" if delta_visitors < 0 else "")
+delta_color = "#2ecc40" if delta_visitors > 0 else ("#ff4136" if delta_visitors < 0 else "#aaa")
+delta_str = f"{delta_icon} {delta_visitors:+}"
+
+# Pastel color for the circle
+circle_color = "#b2d8d8"
+
+# ---- Render Total Unique Visitors ----
+st.markdown("### Visitors & Demographics")
+st.markdown("""
+<div style='display:flex;justify-content:space-between;align-items:center;'>
+    <div style='text-align:center;'>
+        <div style='
+            width:120px;height:120px;
+            background:{circle_color};
+            border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:2.6em;font-weight:bold;
+            transition:transform 0.2s;'
+            onmouseover="this.style.transform='scale(1.15)';"
+            onmouseout="this.style.transform='scale(1)';"
+            title='Total unique visitors to your LinkedIn page this month.'>
+            {cur_month_visitors}
+        </div>
+        <div style='margin-top:12px;font-size:1.1em;'>
+            <span style='color:{delta_color};font-weight:bold;'>{delta_str}</span>
+            <span style='color:#888;font-size:0.9em;'>(vs. all previous months sum)</span>
+        </div>
+        <div style='margin-top:6px;color:#555;'>Total Unique Visitors</div>
+    </div>
+</div>
+""".format(
+    circle_color=circle_color,
+    cur_month_visitors=cur_month_visitors,
+    delta_color=delta_color,
+    delta_str=delta_str
+), unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ------------------------------
+# 2. Job Function Histogram
+# ------------------------------
+if "job_function" in df.columns:
+    jobf = pd.DataFrame(df["job_function"].explode().dropna().tolist())
+    jobf_grouped = jobf.groupby("job_function")["views"].sum().reset_index()
+    fig = px.bar(
+        jobf_grouped,
+        x="job_function",
+        y="views",
+        title="Job Function & Total Views",
+        color="views",
+        color_continuous_scale="Blues"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No job function data available.")
+
+# ------------------------------
+# 3 & 4. Seniority and Company Size Histograms (side by side)
+# ------------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    if "seniority" in df.columns:
+        seniority = pd.DataFrame(df["seniority"].explode().dropna().tolist())
+        seniority_grouped = seniority.groupby("seniority")["views"].sum().reset_index()
+        fig = px.bar(
+            seniority_grouped,
+            x="seniority",
+            y="views",
+            title="Seniority & Total Views",
+            color="views",
+            color_continuous_scale="Greens"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No seniority data available.")
+
+with col2:
+    if "company_size" in df.columns:
+        compsize = pd.DataFrame(df["company_size"].explode().dropna().tolist())
+        compsize_grouped = compsize.groupby("company_size")["views"].sum().reset_index()
+        fig = px.bar(
+            compsize_grouped,
+            x="company_size",
+            y="views",
+            title="Company Size & Total Views",
+            color="views",
+            color_continuous_scale="Purples"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No company size data available.")
+
+# ------------------------------
+# 5. Industry Bubble Plot
+# ------------------------------
+if "industry" in df.columns:
+    industry = pd.DataFrame(df["industry"].explode().dropna().tolist())
+    industry_grouped = industry.groupby("industry")["views"].sum().reset_index()
+    industry_grouped["size"] = np.sqrt(industry_grouped["views"])  # scale for bubble size
+
+    fig = px.scatter(
+        industry_grouped,
+        x="industry",
+        y=["views"] * len(industry_grouped),  # dummy for y, just to plot bubbles horizontally
+        size="size",
+        color="views",
+        size_max=60,
+        title="Industry & Total Views (Bubble Plot)",
+        labels={"industry": "Industry", "views": "Total Views"},
+        color_continuous_scale="Teal"
+    )
+    fig.update_traces(yaxis=None, marker=dict(sizemode='area', line=dict(width=2, color='#888')))
+    fig.update_layout(yaxis=dict(showticklabels=False, visible=False))
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No industry data available.")
 # Call the function (left-aligned, NOT indented)
 render_linkedin_analytics()
 # =========================
