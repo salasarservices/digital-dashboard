@@ -1480,7 +1480,7 @@ def get_total_metric_value(metric, as_of_date):
 
 def get_total_views(as_of_date):
     """Fetch total views as shown in Facebook Insights."""
-    # page_views_total is the metric used for "Views" in the Professional dashboard (see image4)
+    # page_views_total is the metric used for "Views" in the Professional dashboard
     return get_total_metric_value("page_views_total", as_of_date)
 
 def get_posts(since, until):
