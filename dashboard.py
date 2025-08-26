@@ -1450,11 +1450,6 @@ render_linkedin_analytics()
 PAGE_ID = st.secrets["facebook"]["page_id"]
 ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
 
-def get_fb_month_range_from_dates(start_date):
-    start = start_date
-    end = start_date + relativedelta(months=1)
-    return start, end
-
 def get_insight(metric, since, until):
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
     params = {
@@ -1465,7 +1460,6 @@ def get_insight(metric, since, until):
     try:
         resp = requests.get(url, params=params).json()
         if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
-            # Return the last value in the period (cumulative count as per API)
             return resp['data'][0]['values'][-1]['value']
         else:
             print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
@@ -1534,16 +1528,18 @@ cur_views = get_insight("page_content_views", fb_cur_since, fb_cur_until)
 prev_views = get_insight("page_content_views", fb_prev_since, fb_prev_until)
 views_percent = safe_percent(prev_views, cur_views)
 
-# Likes and Followers: show this month's change, not total
+# Likes: show this month's change, not total
 cur_likes_total = get_insight("page_fans", fb_cur_since, fb_cur_until)
 prev_likes_total = get_insight("page_fans", fb_prev_since, fb_prev_until)
 likes_this_month = cur_likes_total - prev_likes_total if (cur_likes_total is not None and prev_likes_total is not None) else 0
 likes_percent = safe_percent(prev_likes_total, cur_likes_total)
 
-cur_followers_total = get_insight("page_follows", fb_cur_since, fb_cur_until)
-prev_followers_total = get_insight("page_follows", fb_prev_since, fb_prev_until)
-followers_this_month = cur_followers_total - prev_followers_total if (cur_followers_total is not None and prev_followers_total is not None) else 0
-followers_percent = safe_percent(prev_followers_total, cur_followers_total)
+# === TOTAL FOLLOWERS LOGIC ===
+period_end_str = ed.strftime('%Y-%m-%d')
+prev_period_end_str = ped.strftime('%Y-%m-%d')
+total_followers = get_insight("page_follows", period_end_str, period_end_str)
+prev_total_followers = get_insight("page_follows", prev_period_end_str, prev_period_end_str)
+followers_percent = safe_percent(prev_total_followers, total_followers)
 
 cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
 prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
@@ -1565,8 +1561,8 @@ fb_circles = [
         "color": "#a6ce39",
     },
     {
-        "title": "Page Followers (This Month)",
-        "value": followers_this_month,
+        "title": "Total Followers",
+        "value": total_followers,
         "delta": followers_percent,
         "color": "#459fda",
     },
@@ -1581,7 +1577,7 @@ fb_circles = [
 fb_tooltips = [
     "The number of times your content was played or displayed. Content includes reels, videos, posts, stories and ads.",
     "Net new likes on your Facebook page during the selected period.",
-    "Net new followers on your Facebook page during the selected period.",
+    "Total followers of your Facebook page as of the end of this period.",
     "Total posts published on your Facebook page this month."
 ]
 
@@ -1627,25 +1623,63 @@ if fb_circles[3]['value'] > 0:
     for idx, post in enumerate(cur_posts_list, 1):
         post_id = post["id"]
         message = post.get("message", "")
-        title_text = (message[:50] + "...") if len(message) > 50 else message
+        title_text = (message[:80] + "...") if len(message) > 80 else message
         created_time = datetime.strptime(
             post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
         ).strftime("%-d %b %Y")
         likes = get_post_likes(post_id, ACCESS_TOKEN)
         post_table.append({
-            "Post #": idx,
             "Title": title_text,
             "Date": created_time,
             "Likes": likes
         })
     df = pd.DataFrame(post_table)
-    st.dataframe(df.style.set_properties(**{
-        'font-size': '1em',
-        'color': '#2d448d',
-        'background-color': '#f0f7fa'
-    }), hide_index=True)
+
+    # Apply custom HTML/CSS table style, matching image2
+    styled_table = df.to_html(
+        escape=False,
+        index=False,
+        classes="fb-custom-table"
+    )
+
+    st.markdown(
+        """
+        <style>
+        .fb-custom-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .fb-custom-table th {
+            background-color: #2d448d;
+            color: #fff;
+            padding: 10px 12px;
+            font-size: 1.08em;
+            font-weight: bold;
+            text-align: left;
+        }
+        .fb-custom-table td {
+            padding: 8px 12px;
+            font-size: 1.07em;
+            color: #222;
+        }
+        .fb-custom-table tr:nth-child(even) {
+            background-color: #f5f7fa;
+        }
+        .fb-custom-table tr:nth-child(odd) {
+            background-color: #fff;
+        }
+        .fb-custom-table a {
+            color: #2061b2 !important;
+            text-decoration: underline;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown(styled_table, unsafe_allow_html=True)
 else:
     st.info("No posts published this month.")
+
 st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
 
 # =========================
