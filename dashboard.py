@@ -1447,26 +1447,41 @@ render_linkedin_analytics()
 # FACEBOOK ANALYTICS
 # =========================
 
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+import streamlit as st
+
 PAGE_ID = st.secrets["facebook"]["page_id"]
 ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
 
-def get_insight(metric, since, until):
+def get_total_metric_value(metric, as_of_date):
+    """Get the total/cumulative value of a metric as of a specific date."""
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
     params = {
-        "since": since,
-        "until": until,
+        "since": as_of_date,
+        "until": as_of_date,
         "access_token": ACCESS_TOKEN
     }
     try:
         resp = requests.get(url, params=params).json()
-        if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
-            return resp['data'][0]['values'][-1]['value']
+        if (
+            "data" in resp and len(resp["data"]) > 0
+            and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
+        ):
+            return resp["data"][0]["values"][-1]["value"]
         else:
-            print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
+            print(f"[DEBUG] No data for metric {metric} on {as_of_date}. Response: {resp}")
         return 0
     except Exception as e:
-        print(f"[ERROR] Exception in get_insight: {e}")
+        print(f"[ERROR] Exception in get_total_metric_value: {e}")
         return 0
+
+def get_total_views(as_of_date):
+    """Fetch total views as shown in Facebook Insights."""
+    # page_views_total is the metric used for "Views" in the Professional dashboard (see image4)
+    return get_total_metric_value("page_views_total", as_of_date)
 
 def get_posts(since, until):
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/posts"
@@ -1490,274 +1505,11 @@ def get_posts(since, until):
         return []
 
 def safe_percent(prev, cur):
-    if prev == 0 and cur == 0:
-        return 0
-    elif prev == 0:
-        return 100 if cur > 0 else 0
     try:
-        return ((cur - prev) / prev) * 100
-    except Exception:
-        return 0
-
-def get_delta_icon_and_color(val):
-    if val > 0:
-        return "↑", "#2ecc40"
-    elif val < 0:
-        return "↓", "#ff4136"
-    else:
-        return "", "#aaa"
-
-def get_post_likes(post_id, access_token):
-    url = f"https://graph.facebook.com/v19.0/{post_id}?fields=likes.summary(true)&access_token={access_token}"
-    try:
-        resp = requests.get(url).json()
-        return resp.get('likes', {}).get('summary', {}).get('total_count', 0)
-    except Exception as e:
-        print(f"[ERROR] Exception in get_post_likes: {e}")
-        return 0
-
-# PATCH: Use YYYY-MM-DD for since/until (not isoformat)
-fb_cur_start, fb_cur_end = sd, ed + timedelta(days=1)
-fb_prev_start, fb_prev_end = psd, ped + timedelta(days=1)
-
-fb_cur_since, fb_cur_until = fb_cur_start.strftime('%Y-%m-%d'), fb_cur_end.strftime('%Y-%m-%d')
-fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.strftime('%Y-%m-%d')
-
-# Views (was Impressions)
-cur_views = get_insight("page_content_views", fb_cur_since, fb_cur_until)
-prev_views = get_insight("page_content_views", fb_prev_since, fb_prev_until)
-views_percent = safe_percent(prev_views, cur_views)
-
-# Likes: show this month's change, not total
-cur_likes_total = get_insight("page_fans", fb_cur_since, fb_cur_until)
-prev_likes_total = get_insight("page_fans", fb_prev_since, fb_prev_until)
-likes_this_month = cur_likes_total - prev_likes_total if (cur_likes_total is not None and prev_likes_total is not None) else 0
-likes_percent = safe_percent(prev_likes_total, cur_likes_total)
-
-# === TOTAL FOLLOWERS LOGIC ===
-period_end_str = ed.strftime('%Y-%m-%d')
-prev_period_end_str = ped.strftime('%Y-%m-%d')
-total_followers = get_insight("page_follows", period_end_str, period_end_str)
-prev_total_followers = get_insight("page_follows", prev_period_end_str, prev_period_end_str)
-followers_percent = safe_percent(prev_total_followers, total_followers)
-
-cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
-prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
-cur_posts = len(cur_posts_list)
-prev_posts = len(prev_posts_list)
-posts_percent = safe_percent(prev_posts, cur_posts)
-
-fb_circles = [
-    {
-        "title": "Views",
-        "value": cur_views,
-        "delta": views_percent,
-        "color": "#2d448d",
-    },
-    {
-        "title": "Page Likes (This Month)",
-        "value": likes_this_month,
-        "delta": likes_percent,
-        "color": "#a6ce39",
-    },
-    {
-        "title": "Total Followers",
-        "value": total_followers,
-        "delta": followers_percent,
-        "color": "#459fda",
-    },
-    {
-        "title": "Posts (This Month)",
-        "value": cur_posts,
-        "delta": posts_percent,
-        "color": "#d178a9",
-    }
-]
-
-fb_tooltips = [
-    "The number of times your content was played or displayed. Content includes reels, videos, posts, stories and ads.",
-    "Net new likes on your Facebook page during the selected period.",
-    "Total followers of your Facebook page as of the end of this period.",
-    "Total posts published on your Facebook page this month."
-]
-
-st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsafe_allow_html=True)
-
-fb_cols = st.columns(4)
-for i, col in enumerate(fb_cols):
-    entry = fb_circles[i]
-    icon, colr = get_delta_icon_and_color(entry["delta"])
-    delta_val = abs(round(entry["delta"], 2))
-    delta_str = f"{icon} {delta_val:.2f}%" if icon else f"{delta_val:.2f}%"
-    delta_class = "fb-delta-up" if entry["delta"] > 0 else ("fb-delta-down" if entry["delta"] < 0 else "fb-delta-same")
-    with col:
-        st.markdown(
-            f"""
-            <div class="fb-metric-card">
-                <div class="fb-metric-label">{entry["title"]}
-                    <span class='tooltip'>
-                        <span class='questionmark'>?</span>
-                        <span class='tooltiptext'>{fb_tooltips[i]}</span>
-                    </span>
-                </div>
-                <div class="fb-animated-circle" style="background:{entry['color']};">
-                    <span>{entry["value"]}</span>
-                </div>
-                <div class="fb-delta-row">
-                    <span class="{delta_class}">{delta_str}</span>
-                    <span class="fb-delta-note">(vs. Previous Month)</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-if all(x["value"] == 0 for x in fb_circles):
-    st.warning("No data detected for any metric. If your Facebook page is new, or if your API token is missing permissions, you may see zeros. Double-check your Facebook access token, permissions, and that your page has analytics data.")
-
-month_title = fb_cur_start.strftime('%B %Y')
-st.markdown(f"<h3 style='color:#2d448d;'>Number of Posts in {month_title}</h3>", unsafe_allow_html=True)
-
-if fb_circles[3]['value'] > 0:
-    post_table = []
-    for idx, post in enumerate(cur_posts_list, 1):
-        post_id = post["id"]
-        message = post.get("message", "")
-        title_text = (message[:80] + "...") if len(message) > 80 else message
-        created_time = datetime.strptime(
-            post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
-        ).strftime("%-d %b %Y")
-        likes = get_post_likes(post_id, ACCESS_TOKEN)
-        post_table.append({
-            "Title": title_text,
-            "Date": created_time,
-            "Likes": likes
-        })
-    df = pd.DataFrame(post_table)
-
-    # Apply custom HTML/CSS table style, matching image2
-    styled_table = df.to_html(
-        escape=False,
-        index=False,
-        classes="fb-custom-table"
-    )
-
-    st.markdown(
-        """
-        <style>
-        .fb-custom-table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        .fb-custom-table th {
-            background-color: #2d448d;
-            color: #fff;
-            padding: 10px 12px;
-            font-size: 1.08em;
-            font-weight: bold;
-            text-align: left;
-        }
-        .fb-custom-table td {
-            padding: 8px 12px;
-            font-size: 1.07em;
-            color: #222;
-        }
-        .fb-custom-table tr:nth-child(even) {
-            background-color: #f5f7fa;
-        }
-        .fb-custom-table tr:nth-child(odd) {
-            background-color: #fff;
-        }
-        .fb-custom-table a {
-            color: #2061b2 !important;
-            text-decoration: underline;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown(styled_table, unsafe_allow_html=True)
-else:
-    st.info("No posts published this month.")
-
-st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
-PAGE_ID = st.secrets["facebook"]["page_id"]
-ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
-
-def get_insight(metric, since, until):
-    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
-    params = {
-        "since": since,
-        "until": until,
-        "access_token": ACCESS_TOKEN
-    }
-    try:
-        resp = requests.get(url, params=params).json()
-        if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
-            # Return the sum of values in the period (for net new)
-            values = resp['data'][0]['values']
-            if isinstance(values[0]['value'], int):
-                return values[-1]['value'] - values[0]['value'] if len(values) > 1 else values[-1]['value']
-            return values[-1]['value']
-        else:
-            print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
-        return 0
-    except Exception as e:
-        print(f"[ERROR] Exception in get_insight: {e}")
-        return 0
-
-def get_fans_or_follows_delta(metric, since, until):
-    """
-    Returns net new fans/follows for the period (value at end minus value at start).
-    """
-    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
-    params = {
-        "since": since,
-        "until": until,
-        "access_token": ACCESS_TOKEN
-    }
-    try:
-        resp = requests.get(url, params=params).json()
-        if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
-            values = resp['data'][0]['values']
-            if len(values) > 1:
-                return values[-1]['value'] - values[0]['value']
-            else:
-                return 0
-        else:
-            print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
-        return 0
-    except Exception as e:
-        print(f"[ERROR] Exception in get_fans_or_follows_delta: {e}")
-        return 0
-
-def get_posts(since, until):
-    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/posts"
-    params = {
-        "since": since,
-        "until": until,
-        "limit": 100,
-        "access_token": ACCESS_TOKEN
-    }
-    posts = []
-    try:
-        while url:
-            resp = requests.get(url, params=params).json()
-            posts.extend(resp.get('data', []))
-            paging = resp.get('paging', {})
-            url = paging.get('next') if 'next' in paging else None
-            params = {}
-        return posts
-    except Exception as e:
-        print(f"[ERROR] Exception in get_posts: {e}")
-        return []
-
-def safe_percent(prev, cur):
-    if prev == 0 and cur == 0:
-        return 0
-    elif prev == 0:
-        return 100 if cur > 0 else 0
-    try:
+        if prev == 0 and cur == 0:
+            return 0
+        elif prev == 0:
+            return 100 if cur > 0 else 0
         return ((cur - prev) / abs(prev)) * 100
     except Exception:
         return 0
@@ -1786,21 +1538,29 @@ fb_prev_start, fb_prev_end = psd, ped + timedelta(days=1)
 fb_cur_since, fb_cur_until = fb_cur_start.strftime('%Y-%m-%d'), fb_cur_end.strftime('%Y-%m-%d')
 fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.strftime('%Y-%m-%d')
 
-# Views (page_content_views)
-cur_views = get_insight("page_content_views", fb_cur_since, fb_cur_until)
-prev_views = get_insight("page_content_views", fb_prev_since, fb_prev_until)
+# Fetch totals at the end of current and previous periods
+period_end_str = ed.strftime('%Y-%m-%d')
+prev_period_end_str = ped.strftime('%Y-%m-%d')
+
+# 1. Total Views (matches Facebook Insights)
+cur_views = get_total_views(period_end_str)
+prev_views = get_total_views(prev_period_end_str)
+views_delta = cur_views - prev_views
 views_percent = safe_percent(prev_views, cur_views)
 
-# Page Likes: net new this month
-cur_likes_delta = get_fans_or_follows_delta("page_fans", fb_cur_since, fb_cur_until)
-prev_likes_delta = get_fans_or_follows_delta("page_fans", fb_prev_since, fb_prev_until)
-likes_percent = safe_percent(prev_likes_delta, cur_likes_delta)
+# 2. Total Page Likes and Deltas
+cur_total_likes = get_total_metric_value("page_fans", period_end_str)
+prev_total_likes = get_total_metric_value("page_fans", prev_period_end_str)
+likes_delta = cur_total_likes - prev_total_likes
+likes_percent = safe_percent(prev_total_likes, cur_total_likes)
 
-# Page Followers: net new this month
-cur_followers_delta = get_fans_or_follows_delta("page_follows", fb_cur_since, fb_cur_until)
-prev_followers_delta = get_fans_or_follows_delta("page_follows", fb_prev_since, fb_prev_until)
-followers_percent = safe_percent(prev_followers_delta, cur_followers_delta)
+# 3. Total Page Followers and Deltas
+cur_total_followers = get_total_metric_value("page_follows", period_end_str)
+prev_total_followers = get_total_metric_value("page_follows", prev_period_end_str)
+followers_delta = cur_total_followers - prev_total_followers
+followers_percent = safe_percent(prev_total_followers, cur_total_followers)
 
+# 4. Posts this month
 cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
 prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
 cur_posts = len(cur_posts_list)
@@ -1812,32 +1572,36 @@ fb_circles = [
         "title": "Views",
         "value": cur_views,
         "delta": views_percent,
+        "num_delta": views_delta,
         "color": "#2d448d",
     },
     {
-        "title": "Page Likes (This Month)",
-        "value": cur_likes_delta,
+        "title": "Page Likes",
+        "value": cur_total_likes,
         "delta": likes_percent,
+        "num_delta": likes_delta,
         "color": "#a6ce39",
     },
     {
-        "title": "Page Followers (This Month)",
-        "value": cur_followers_delta,
+        "title": "Page Followers",
+        "value": cur_total_followers,
         "delta": followers_percent,
+        "num_delta": followers_delta,
         "color": "#459fda",
     },
     {
         "title": "Posts (This Month)",
         "value": cur_posts,
         "delta": posts_percent,
+        "num_delta": cur_posts - prev_posts,
         "color": "#d178a9",
     }
 ]
 
 fb_tooltips = [
-    "The number of times your content was played or displayed. Content includes reels, videos, posts, stories and ads.",
-    "Net new likes on your Facebook page during the selected period.",
-    "Net new followers on your Facebook page during the selected period.",
+    "The total number of times your page was viewed (all content types), matching Facebook Insights.",
+    "Total Page Likes as of end of this period. Delta: likes gained/lost this month.",
+    "Total Page Followers as of end of this period. Delta: followers gained/lost this month.",
     "Total posts published on your Facebook page this month."
 ]
 
@@ -1846,10 +1610,10 @@ st.markdown('<div class="fb-section-header">Facebook Page Analytics</div>', unsa
 fb_cols = st.columns(4)
 for i, col in enumerate(fb_cols):
     entry = fb_circles[i]
-    icon, colr = get_delta_icon_and_color(entry["delta"])
-    delta_val = abs(round(entry["delta"], 2))
-    delta_str = f"{icon} {delta_val:.2f}%" if icon else f"{delta_val:.2f}%"
-    delta_class = "fb-delta-up" if entry["delta"] > 0 else ("fb-delta-down" if entry["delta"] < 0 else "fb-delta-same")
+    icon, colr = get_delta_icon_and_color(entry["num_delta"])
+    delta_val = abs(entry["num_delta"])
+    delta_str = f"{icon} {entry['num_delta']:+}" if entry["num_delta"] != 0 else "0"
+    delta_class = "fb-delta-up" if entry["num_delta"] > 0 else ("fb-delta-down" if entry["num_delta"] < 0 else "fb-delta-same")
     with col:
         st.markdown(
             f"""
