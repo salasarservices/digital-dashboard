@@ -1574,11 +1574,11 @@ year_suffix = fb_cur_start.strftime('%y')         # e.g., "25"
 posts_title = f"Total Posts [{month_abbr}{year_suffix}]"
 
 fb_circles = [
-    {
+{
         "title": "Views",
-        "value": cur_views,
-        "delta": views_percent,
-        "num_delta": views_delta,
+        "value": cur_views,           # This goes INSIDE the circle (should be total views)
+        "delta": views_percent,       
+        "num_delta": views_delta,     # This goes BELOW the circle (should be the delta)
         "color": "#2d448d",
     },
     {
