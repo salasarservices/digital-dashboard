@@ -1472,8 +1472,7 @@ def get_total_metric_value(metric, as_of_date):
         return 0
 
 def get_total_views(as_of_date):
-    """Fetch total views as shown in Facebook Insights."""
-    # page_views_total is the metric used for "Views" in the Professional dashboard (see image4)
+    # Facebook Insights "Views" metric, see image5 and previous examples
     return get_total_metric_value("page_views_total", as_of_date)
 
 def get_posts(since, until):
@@ -1522,6 +1521,15 @@ def get_post_likes(post_id, access_token):
         return resp.get('likes', {}).get('summary', {}).get('total_count', 0)
     except Exception as e:
         print(f"[ERROR] Exception in get_post_likes: {e}")
+        return 0
+
+def get_post_comments(post_id, access_token):
+    url = f"https://graph.facebook.com/v19.0/{post_id}/comments?summary=true&access_token={access_token}"
+    try:
+        resp = requests.get(url).json()
+        return resp.get('summary', {}).get('total_count', 0)
+    except Exception as e:
+        print(f"[ERROR] Exception in get_post_comments: {e}")
         return 0
 
 # PATCH: Use YYYY-MM-DD for since/until (not isoformat)
@@ -1640,31 +1648,55 @@ if fb_circles[3]['value'] > 0:
     for idx, post in enumerate(cur_posts_list, 1):
         post_id = post["id"]
         message = post.get("message", "")
-        title_text = (message[:70] + "...") if len(message) > 70 else message
-        created_time = datetime.strptime(
-            post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
-        ).strftime("%-d %b %Y")
+        title_text = (message[:80] + "...") if len(message) > 80 else message
+        # Fetch views, watch time, likes, comments if available
+        # Replace below with actual API calls if you have video content
+        views = ""  # Replace with actual value if available
+        watch_time = ""  # Replace with actual value if available
         likes = get_post_likes(post_id, ACCESS_TOKEN)
+        comments = get_post_comments(post_id, ACCESS_TOKEN)
         post_table.append({
-            "Post #": idx,
             "Title": title_text,
-            "Date": created_time,
-            "Likes": likes
+            "Views": views,
+            "Watch Time (min)": watch_time,
+            "Likes": likes,
+            "Comments": comments,
         })
     df = pd.DataFrame(post_table)
-    st.dataframe(
-        df.style.set_properties(**{
-            'font-size': '1em',
-            'color': '#2d448d',
-            'background-color': '#f5fafd'
-        }).set_table_styles([
-            {'selector': 'th', 'props': [('background-color', '#2d448d'), ('color', '#fff'), ('font-size', '1em'), ('font-weight', 'bold')]},
-            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#eaf2fb')]},
-            {'selector': 'tr:nth-child(odd)', 'props': [('background-color', '#f5fafd')]}
-        ]),
-        use_container_width=True,
-        hide_index=True
-    )
+    st.markdown("""
+    <style>
+    .fb-custom-table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 16px;
+    }
+    .fb-custom-table th {
+        background-color: #2d448d !important;
+        color: #fff !important;
+        font-weight: bold !important;
+        font-size: 1.08em !important;
+        text-align: left !important;
+        padding: 10px 15px !important;
+    }
+    .fb-custom-table td {
+        font-size: 1.07em !important;
+        color: #222 !important;
+        padding: 8px 15px !important;
+        border-bottom: 1px solid #eaeaea !important;
+    }
+    .fb-custom-table tr:nth-child(even) {
+        background-color: #f5f7fa !important;
+    }
+    .fb-custom-table tr:nth-child(odd) {
+        background-color: #fff !important;
+    }
+    .fb-custom-table a {
+        color: #2061b2 !important;
+        text-decoration: underline !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown(df.to_html(escape=False, index=False, classes="fb-custom-table"), unsafe_allow_html=True)
 else:
     st.info("No posts published this month.")
 
