@@ -1465,6 +1465,7 @@ def get_insight(metric, since, until):
     try:
         resp = requests.get(url, params=params).json()
         if "data" in resp and len(resp["data"]) > 0 and "values" in resp["data"][0]:
+            # Return the last value in the period (cumulative count as per API)
             return resp['data'][0]['values'][-1]['value']
         else:
             print(f"[DEBUG] No data for metric {metric}. Response: {resp}")
@@ -1528,24 +1529,22 @@ fb_prev_start, fb_prev_end = psd, ped + timedelta(days=1)
 fb_cur_since, fb_cur_until = fb_cur_start.strftime('%Y-%m-%d'), fb_cur_end.strftime('%Y-%m-%d')
 fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.strftime('%Y-%m-%d')
 
-def test_page_access():
-    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}"
-    params = {"access_token": ACCESS_TOKEN, "fields": "name"}
-    resp = requests.get(url, params=params).json()
-    print("[DEBUG] Page info:", resp)
+# Views (was Impressions)
+cur_views = get_insight("page_content_views", fb_cur_since, fb_cur_until)
+prev_views = get_insight("page_content_views", fb_prev_since, fb_prev_until)
+views_percent = safe_percent(prev_views, cur_views)
 
-# Uncomment this line to debug your access (optional)
-# test_page_access()
+# Likes and Followers: show this month's change, not total
+cur_likes_total = get_insight("page_fans", fb_cur_since, fb_cur_until)
+prev_likes_total = get_insight("page_fans", fb_prev_since, fb_prev_until)
+likes_this_month = cur_likes_total - prev_likes_total if (cur_likes_total is not None and prev_likes_total is not None) else 0
+likes_percent = safe_percent(prev_likes_total, cur_likes_total)
 
-cur_impressions = get_insight("page_impressions", fb_cur_since, fb_cur_until)
-prev_impressions = get_insight("page_impressions", fb_prev_since, fb_prev_until)
-impressions_percent = safe_percent(prev_impressions, cur_impressions)
-cur_likes = get_insight("page_fans", fb_cur_since, fb_cur_until)
-prev_likes = get_insight("page_fans", fb_prev_since, fb_prev_until)
-likes_percent = safe_percent(prev_likes, cur_likes)
-cur_followers = get_insight("page_follows", fb_cur_since, fb_cur_until)
-prev_followers = get_insight("page_follows", fb_prev_since, fb_prev_until)
-followers_percent = safe_percent(prev_followers, cur_followers)
+cur_followers_total = get_insight("page_follows", fb_cur_since, fb_cur_until)
+prev_followers_total = get_insight("page_follows", fb_prev_since, fb_prev_until)
+followers_this_month = cur_followers_total - prev_followers_total if (cur_followers_total is not None and prev_followers_total is not None) else 0
+followers_percent = safe_percent(prev_followers_total, cur_followers_total)
+
 cur_posts_list = get_posts(fb_cur_since, fb_cur_until)
 prev_posts_list = get_posts(fb_prev_since, fb_prev_until)
 cur_posts = len(cur_posts_list)
@@ -1554,20 +1553,20 @@ posts_percent = safe_percent(prev_posts, cur_posts)
 
 fb_circles = [
     {
-        "title": "Page Impressions",
-        "value": cur_impressions,
-        "delta": impressions_percent,
+        "title": "Views",
+        "value": cur_views,
+        "delta": views_percent,
         "color": "#2d448d",
     },
     {
-        "title": "Page Likes",
-        "value": cur_likes,
+        "title": "Page Likes (This Month)",
+        "value": likes_this_month,
         "delta": likes_percent,
         "color": "#a6ce39",
     },
     {
-        "title": "Page Followers",
-        "value": cur_followers,
+        "title": "Page Followers (This Month)",
+        "value": followers_this_month,
         "delta": followers_percent,
         "color": "#459fda",
     },
@@ -1580,9 +1579,9 @@ fb_circles = [
 ]
 
 fb_tooltips = [
-    "The total number of times any content from your Facebook page was displayed to users (impressions) during the selected period.",
-    "The total number of likes your Facebook page has received during the selected period.",
-    "The number of followers of your Facebook page during the selected period.",
+    "The number of times your content was played or displayed. Content includes reels, videos, posts, stories and ads.",
+    "Net new likes on your Facebook page during the selected period.",
+    "Net new followers on your Facebook page during the selected period.",
     "Total posts published on your Facebook page this month."
 ]
 
@@ -1621,7 +1620,7 @@ if all(x["value"] == 0 for x in fb_circles):
     st.warning("No data detected for any metric. If your Facebook page is new, or if your API token is missing permissions, you may see zeros. Double-check your Facebook access token, permissions, and that your page has analytics data.")
 
 month_title = fb_cur_start.strftime('%B %Y')
-st.markdown(f"<h3 style='color:#2d448d;'>Number of Post in {month_title}</h3>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='color:#2d448d;'>Number of Posts in {month_title}</h3>", unsafe_allow_html=True)
 
 if fb_circles[3]['value'] > 0:
     post_table = []
@@ -1629,23 +1628,25 @@ if fb_circles[3]['value'] > 0:
         post_id = post["id"]
         message = post.get("message", "")
         title_text = (message[:50] + "...") if len(message) > 50 else message
-        title_html = f"<b>{title_text}</b>"
         created_time = datetime.strptime(
             post["created_time"].replace("+0000", ""), "%Y-%m-%dT%H:%M:%S"
         ).strftime("%-d %b %Y")
         likes = get_post_likes(post_id, ACCESS_TOKEN)
         post_table.append({
-            "Post Count": idx,
-            "Post Title": title_html,
-            "Date & time": created_time,
-            "Post Likes": likes
+            "Post #": idx,
+            "Title": title_text,
+            "Date": created_time,
+            "Likes": likes
         })
     df = pd.DataFrame(post_table)
-    st.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
+    st.dataframe(df.style.set_properties(**{
+        'font-size': '1em',
+        'color': '#2d448d',
+        'background-color': '#f0f7fa'
+    }), hide_index=True)
 else:
     st.info("No posts published this month.")
 st.caption("All data is pulled live from Facebook Graph API. Tokens and IDs are loaded securely from Streamlit secrets.")
-
 
 # =========================
 # YOUTUBE ANALYTICS
