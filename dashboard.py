@@ -1568,6 +1568,11 @@ cur_posts = len(cur_posts_list)
 prev_posts = len(prev_posts_list)
 posts_percent = safe_percent(prev_posts, cur_posts)
 
+# Get month abbreviation and year suffix for the posts circle title
+month_abbr = fb_cur_start.strftime('%b').upper()  # e.g., "AUG"
+year_suffix = fb_cur_start.strftime('%y')         # e.g., "25"
+posts_title = f"Total Posts [{month_abbr}{year_suffix}]"
+
 fb_circles = [
     {
         "title": "Views",
@@ -1577,21 +1582,21 @@ fb_circles = [
         "color": "#2d448d",
     },
     {
-        "title": "Page Likes",
+        "title": "Total Page Likes",
         "value": cur_total_likes,
         "delta": likes_percent,
         "num_delta": likes_delta,
         "color": "#a6ce39",
     },
     {
-        "title": "Page Followers",
+        "title": "Total Followers",
         "value": cur_total_followers,
         "delta": followers_percent,
         "num_delta": followers_delta,
         "color": "#459fda",
     },
     {
-        "title": "Posts (This Month)",
+        "title": posts_title,
         "value": cur_posts,
         "delta": posts_percent,
         "num_delta": cur_posts - prev_posts,
