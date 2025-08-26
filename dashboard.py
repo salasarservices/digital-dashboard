@@ -1471,9 +1471,25 @@ def get_total_metric_value(metric, as_of_date):
         print(f"[ERROR] Exception in get_total_metric_value: {e}")
         return 0
 
-def get_total_views(as_of_date):
-    # Facebook Insights "Views" metric, see image5 and previous examples
-    return get_total_metric_value("page_views_total", as_of_date)
+def get_lifetime_total_views():
+    url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/page_views_total"
+    params = {
+        "access_token": ACCESS_TOKEN
+    }
+    try:
+        resp = requests.get(url, params=params).json()
+        if (
+            "data" in resp and len(resp["data"]) > 0
+            and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
+        ):
+            # Get the very latest value (should be cumulative)
+            return resp["data"][0]["values"][-1]["value"]
+        else:
+            print(f"[DEBUG] No data for lifetime total views. Response: {resp}")
+        return 0
+    except Exception as e:
+        print(f"[ERROR] Exception in get_lifetime_total_views: {e}")
+        return 0
 
 def get_posts(since, until):
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/posts"
@@ -1576,9 +1592,9 @@ posts_title = f"Total Posts [{month_abbr}{year_suffix}]"
 fb_circles = [
 {
         "title": "Views",
-        "value": cur_views,           # This goes INSIDE the circle (should be total views)
-        "delta": views_percent,       
-        "num_delta": views_delta,     # This goes BELOW the circle (should be the delta)
+        "value": lifetime_total_views,  # <--- USE ALL-TIME TOTAL HERE
+        "delta": views_percent,
+        "num_delta": views_delta,
         "color": "#2d448d",
     },
     {
@@ -1668,6 +1684,7 @@ if fb_circles[3]['value'] > 0:
             "Comments": comments,
         })
     df = pd.DataFrame(post_table)
+    df = df.drop(columns=["Views", "Watch Time (min)"], errors="ignore")
     st.markdown("""
     <style>
     .fb-custom-table {
