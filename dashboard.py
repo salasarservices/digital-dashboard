@@ -1714,7 +1714,8 @@ fb_prev_since, fb_prev_until = fb_prev_start.strftime('%Y-%m-%d'), fb_prev_end.s
 # Fetch totals at the end of current and previous periods
 period_end_str = ed.strftime('%Y-%m-%d')
 prev_period_end_str = ped.strftime('%Y-%m-%d')
-
+def get_total_views(as_of_date):
+    return get_total_metric_value("page_views_total", as_of_date)
 # 1. Total Views (matches Facebook Insights)
 cur_views = get_total_views(period_end_str)
 prev_views = get_total_views(prev_period_end_str)
