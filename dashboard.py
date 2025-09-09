@@ -1312,14 +1312,20 @@ else:
 # LINKEDIN ANALYTICS
 # =========================
 
+import streamlit as st
+import pandas as pd
+from datetime import datetime, date
+from pymongo import MongoClient
+from dateutil.relativedelta import relativedelta
+
 def get_last_12_month_options():
     """Return a list of last 12 months as 'Month YYYY' (latest first)."""
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
 
-def render_linkedin_analytics():
-    st.markdown('<div class="section-header">LinkedIn Analytics</div>', unsafe_allow_html=True)
+def render_linkedin_followers_analytics():
+    st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sallnkddata"
@@ -1328,189 +1334,153 @@ def render_linkedin_analytics():
         db = client[db_name]
         col = db[collection_name]
         data = list(col.find({}))
+        client.close()
     except Exception as e:
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
         return
+
     if not data:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
     df = pd.DataFrame(data)
-    if "Date" not in df.columns:
-        st.error("No 'Date' column found in LinkedIn analytics collection.")
-        return
+    # Ensure required columns exist
+    required_cols = ["Date", "Followers total", "Total followers (Date-wise)"]
+    for colname in required_cols:
+        if colname not in df.columns:
+            st.error(f"Required column missing: '{colname}'")
+            return
 
-    # Convert Date to pandas datetime
+    # Convert Date to pandas datetime, create Month period and MonthStr
     df["Date"] = pd.to_datetime(df["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
+    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
 
-    # --- Month selection dropdown ---
+    # Get last 12 months for dropdown
     month_options = get_last_12_month_options()
-    latest_data_month = df["Month"].max()
-    latest_data_month_str = latest_data_month.strftime('%B %Y')
-    default_index = month_options.index(latest_data_month_str) if latest_data_month_str in month_options else 0
+    # Pick the latest available month in data as default
+    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
+    default_index = month_options.index(latest_month) if latest_month in month_options else 0
     selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
-    selected_month = datetime.strptime(selected_month_str, "%B %Y").date().replace(day=1)
-    selected_period = selected_month.strftime('%Y-%m')
-    prev_period_dt = (selected_month - relativedelta(months=1))
-    prev_period = prev_period_dt.strftime('%Y-%m')
+    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
+    prev_period = selected_period - 1
+    prev_month_str = prev_period.strftime('%B %Y')
 
-    # Metrics to show (replaced 'Engagement' with 'Followers')
-    metric_names = ["Impressions", "Unique Impressions", "Clicks", "Likes", "Followers"]
-    pastel_colors = ["#f7cac9", "#b5ead7", "#b8e0fc", "#f9e79f", "#e2c2fc"]
+    # Followers total: show the latest available value in the DB
+    followers_total = df.sort_values("Date", ascending=False)["Followers total"].iloc[0]
 
-    # Group by Month
-    month_totals = df.groupby("Month")[metric_names].sum().sort_index()
-    months = [str(m) for m in month_totals.index]
-    if selected_period not in months:
-        st.warning(f"No data for {selected_month_str}.")
-        return
-    if prev_period not in months:
-        st.warning(f"No data for previous month ({prev_period_dt.strftime('%B %Y')}).")
-        return
+    # Followers gained in selected month and previous month
+    cur_month_rows = df[df["Month"] == selected_period]
+    prev_month_rows = df[df["Month"] == prev_period]
 
-    cur_data = month_totals.loc[selected_period]
-    prev_data = month_totals.loc[prev_period]
+    followers_gained_cur = cur_month_rows["Total followers (Date-wise)"].sum() if not cur_month_rows.empty else 0
+    followers_gained_prev = prev_month_rows["Total followers (Date-wise)"].sum() if not prev_month_rows.empty else 0
 
-    st.markdown(
-        f"<div style='font-size:1.3em;margin-bottom:8px;'>Current Month: <b style='color:#2d448d'>{selected_period}</b> &nbsp;&nbsp; Previous Month: <b style='color:#b8b8b8'>{prev_period}</b></div>",
-        unsafe_allow_html=True,
-    )
+    # Delta calculation
+    delta = followers_gained_cur - followers_gained_prev
+    delta_sign = "+" if delta > 0 else ""  # "" will show minus automatically
+    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
+    delta_text = f"{delta_sign}{delta:,}"
 
-    # Show metrics
-    cols = st.columns(len(metric_names))
-    for i, (metric, color) in enumerate(zip(metric_names, pastel_colors)):
-        cur_val = int(cur_data.get(metric, 0))
-        prev_val = int(prev_data.get(metric, 0))
-        # Calculate delta %
-        if prev_val == 0:
-            pct = 100.0 if cur_val > 0 else 0.0
-        else:
-            pct = ((cur_val - prev_val) / prev_val) * 100
-        arrow = "↑" if pct > 0 else ("↓" if pct < 0 else "")
-        pct_color = "#2ecc40" if pct > 0 else ("#ff4136" if pct < 0 else "#888")
-        delta_str = f"{arrow} {abs(pct):.1f}%"
-        # Zoom-in hover animation CSS
-        st.markdown(
-            f"""
-            <style>
-            .metric-circle-{i} {{
-                background: {color};
-                border-radius: 50%;
-                width: 90px;
-                height: 90px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 0.6em auto;
-                font-size: 2em;
-                font-weight: bold;
-                transition: transform 0.18s cubic-bezier(.4,2,.55,.44);
-                box-shadow: 0 4px 14px rgba(0,0,0,0.10);
-                cursor:pointer;
-            }}
-            .metric-circle-{i}:hover {{
-                transform: scale(1.13);
-                box-shadow: 0 8px 24px rgba(44,68,141,0.18);
-            }}
-            .metric-label-{i} {{
-                text-align: center;
-                font-weight: 500;
-                font-size: 1.08em;
-                margin-bottom: 0.25em;
-                color: #2d448d;
-            }}
-            .metric-delta-{i} {{
-                text-align: center;
-                font-size: 1.07em;
-                margin-top: 0.25em;
-                font-weight: 600;
-                color: {pct_color};
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        with cols[i]:
-            st.markdown(
-                f"""
-                <div class="metric-label-{i}">{metric}</div>
-                <div class="metric-circle-{i}">{cur_val}</div>
-                <div class="metric-delta-{i}">{delta_str}</div>
-                """,
-                unsafe_allow_html=True,
-            )
+    # Animated Circle CSS for Followers total
+    st.markdown("""
+    <style>
+    .followers-circle {
+        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
+        border-radius: 50%;
+        width: 104px;
+        height: 104px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.6em auto;
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #fff;
+        box-shadow: 0 4px 13px rgba(63,138,224,0.14);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+    }
+    .followers-circle:hover {
+        transform: scale(1.13);
+        box-shadow: 0 8px 24px rgba(63,138,224,0.15);
+    }
+    .followers-total-label {
+        text-align: center;
+        font-weight: 550;
+        font-size: 1.18em;
+        margin-bottom: 0.25em;
+        color: #2d448d;
+        letter-spacing: 0.02em;
+    }
+    .followers-gained-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: 18px;
+        margin-top: 0.35em;
+        margin-bottom: 0.12em;
+    }
+    .followers-gained-label {
+        text-align: right;
+        font-size: 1.10em;
+        color: #225;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    .followers-gained-value {
+        font-weight: 700;
+        color: #2d448d;
+        font-size: 1.13em;
+        margin-left: 2px;
+    }
+    .followers-delta-row {
+        text-align: center;
+        font-size: 1.03em;
+        font-weight: 600;
+        margin-top: 0.22em;
+        margin-bottom: 0.1em;
+    }
+    .followers-delta-value {
+        color: %s;
+        font-size: 1.07em;
+        font-weight: 700;
+        margin-right: 4px;
+    }
+    .followers-delta-label {
+        color: #888;
+        font-size: 0.97em;
+        font-weight: 400;
+        margin-left: 2px;
+    }
+    </style>
+    """ % delta_color, unsafe_allow_html=True)
 
-# --- VISITOR ANALYTICS ----
-# MongoDB setup
-mongo_client = MongoClient(st.secrets["mongo_uri_linkedin"])
-db = mongo_client["sallnkddata2"]
-collection = db["lnkddata2"]
+    # Render Followers total circle
+    st.markdown(f"""
+    <div class="followers-total-label">Followers total</div>
+    <div class="followers-circle">{int(followers_total):,}</div>
+    """, unsafe_allow_html=True)
 
-# Utility: Get current month and all previous months
-from datetime import datetime
-
-now = datetime.now()
-cur_month = now.strftime("%Y-%m")
-# You may need to adjust the logic for your date format in the DB
-
-# Fetch data
-data = list(collection.find({}))
-df = pd.DataFrame(data)
-
-# ------------------------------
-# 1. Total Unique Visitors & Delta
-# ------------------------------
-# Assumes 'month' column in YYYY-MM format and 'total_unique_visitors' field exists
-# If your DB structure is different, adapt accordingly
-
-# Current month total
-cur_month_visitors = df[df["month"] == cur_month]["total_unique_visitors"].sum()
-# Previous all months total
-prev_months_visitors = df[df["month"] != cur_month]["total_unique_visitors"].sum()
-# Delta
-delta_visitors = cur_month_visitors - prev_months_visitors
-
-# Delta styling
-delta_icon = "↑" if delta_visitors > 0 else ("↓" if delta_visitors < 0 else "")
-delta_color = "#2ecc40" if delta_visitors > 0 else ("#ff4136" if delta_visitors < 0 else "#aaa")
-delta_str = f"{delta_icon} {delta_visitors:+}"
-
-# Pastel color for the circle
-circle_color = "#b2d8d8"
-
-# ---- Render Total Unique Visitors ----
-st.markdown("### Visitors & Demographics")
-st.markdown("""
-<div style='display:flex;justify-content:space-between;align-items:center;'>
-    <div style='text-align:center;'>
-        <div style='
-            width:120px;height:120px;
-            background:{circle_color};
-            border-radius:50%;
-            display:flex;align-items:center;justify-content:center;
-            font-size:2.6em;font-weight:bold;
-            transition:transform 0.2s;'
-            onmouseover="this.style.transform='scale(1.15)';"
-            onmouseout="this.style.transform='scale(1)';"
-            title='Total unique visitors to your LinkedIn page this month.'>
-            {cur_month_visitors}
+    # Render followers gained in selected month (sum), delta vs previous month
+    st.markdown(f"""
+    <div class="followers-gained-row">
+        <div class="followers-gained-label">
+            Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
         </div>
-        <div style='margin-top:12px;font-size:1.1em;'>
-            <span style='color:{delta_color};font-weight:bold;'>{delta_str}</span>
-            <span style='color:#888;font-size:0.9em;'>(vs. all previous months sum)</span>
-        </div>
-        <div style='margin-top:6px;color:#555;'>Total Unique Visitors</div>
+        <div class="followers-gained-value">{int(followers_gained_cur):,}</div>
     </div>
-</div>
-""".format(
-    circle_color=circle_color,
-    cur_month_visitors=cur_month_visitors,
-    delta_color=delta_color,
-    delta_str=delta_str
-), unsafe_allow_html=True)
+    <div class="followers-delta-row">
+        <span class="followers-delta-value">{delta_text}</span>
+        <span style="color:{delta_color};font-size:1.01em;">
+            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
+        </span>
+        <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("---")
+# Call the new function in your main code where appropriate
+render_linkedin_followers_analytics()
 
 # ------------------------------
 # 2. Job Function Histogram
