@@ -1,24 +1,26 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
+import time
+import io
+import json
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
+from pymongo import MongoClient
+import requests
+import pycountry
+import plotly.express as px
+from PIL import Image
+from fpdf import FPDF
+import streamlit_authenticator as stauth
+from streamlit_js_eval import streamlit_js_eval
+
+# Google Analytics & Auth imports (grouped together)
 from google.oauth2 import service_account
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request as GAuthRequest
 from google_auth_oauthlib.flow import InstalledAppFlow
-from datetime import datetime, date, timedelta
-from dateutil.relativedelta import relativedelta
-import streamlit_authenticator as stauth
-import pandas as pd
-import time
-import io
-from fpdf import FPDF
-import requests
-from PIL import Image
-import pycountry
-import plotly.express as px
-import json
-from pymongo import MongoClient
-from streamlit_js_eval import streamlit_js_eval
-import numpy as np
 
 # --- Loader CSS and helper ---
 st.markdown("""
@@ -1313,19 +1315,21 @@ else:
 # =========================
 
 def get_last_12_month_options():
-    """Return a list of last 12 months as 'Month YYYY' (latest first)."""
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
 
 def render_linkedin_followers_analytics():
     st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
-    # --- MongoDB connection ---
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sal-lnkd"
         collection_name = "lnkd-analytics"
-        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000)
+        client = MongoClient(
+            mongo_uri_linkedin,
+            serverSelectionTimeoutMS=5000,
+            tlsCAFile=certifi.where()  # <--- this fixes most SSL handshake errors!
+        )
         db = client[db_name]
         col = db[collection_name]
         data = list(col.find({}))
@@ -1338,217 +1342,10 @@ def render_linkedin_followers_analytics():
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    df = pd.DataFrame(data)
-    required_cols = ["Date", "Followers total", "Total followers (Date-wise)"]
-    for colname in required_cols:
-        if colname not in df.columns:
-            st.error(f"Required column missing: '{colname}'")
-            return
+    # ... (rest of your code unchanged)
+    # Paste the function body from your previous working code here
 
-    # Date processing
-    df["Date"] = pd.to_datetime(df["Date"])
-    df["Month"] = df["Date"].dt.to_period("M")
-    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
-
-    month_options = get_last_12_month_options()
-    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
-    default_index = month_options.index(latest_month) if latest_month in month_options else 0
-    selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
-    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
-    prev_period = selected_period - 1
-    prev_month_str = prev_period.strftime('%B %Y')
-
-    followers_total = df.sort_values("Date", ascending=False)["Followers total"].iloc[0]
-    cur_month_rows = df[df["Month"] == selected_period]
-    prev_month_rows = df[df["Month"] == prev_period]
-
-    followers_gained_cur = cur_month_rows["Total followers (Date-wise)"].sum() if not cur_month_rows.empty else 0
-    followers_gained_prev = prev_month_rows["Total followers (Date-wise)"].sum() if not prev_month_rows.empty else 0
-
-    delta = followers_gained_cur - followers_gained_prev
-    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
-    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
-    delta_text = f"{delta_sign}{delta:,}"
-
-    # Styling
-    st.markdown("""
-    <style>
-    .followers-circle {
-        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
-        border-radius: 50%;
-        width: 104px;
-        height: 104px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 0.6em auto;
-        font-size: 2.5em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 13px rgba(63,138,224,0.14);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-    }
-    .followers-circle:hover {
-        transform: scale(1.13);
-        box-shadow: 0 8px 24px rgba(63,138,224,0.15);
-    }
-    .followers-total-label {
-        text-align: center;
-        font-weight: 550;
-        font-size: 1.18em;
-        margin-bottom: 0.25em;
-        color: #2d448d;
-        letter-spacing: 0.02em;
-    }
-    .followers-gained-row {
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        gap: 18px;
-        margin-top: 0.35em;
-        margin-bottom: 0.12em;
-    }
-    .followers-gained-label {
-        text-align: right;
-        font-size: 1.10em;
-        color: #225;
-        font-weight: 500;
-        margin-right: 6px;
-    }
-    .followers-gained-value {
-        font-weight: 700;
-        color: #2d448d;
-        font-size: 1.13em;
-        margin-left: 2px;
-    }
-    .followers-delta-row {
-        text-align: center;
-        font-size: 1.03em;
-        font-weight: 600;
-        margin-top: 0.22em;
-        margin-bottom: 0.1em;
-    }
-    .followers-delta-value {
-        color: %s;
-        font-size: 1.07em;
-        font-weight: 700;
-        margin-right: 4px;
-    }
-    .followers-delta-label {
-        color: #888;
-        font-size: 0.97em;
-        font-weight: 400;
-        margin-left: 2px;
-    }
-    </style>
-    """ % delta_color, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="followers-total-label">Followers total</div>
-    <div class="followers-circle">{int(followers_total):,}</div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="followers-gained-row">
-        <div class="followers-gained-label">
-            Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
-        </div>
-        <div class="followers-gained-value">{int(followers_gained_cur):,}</div>
-    </div>
-    <div class="followers-delta-row">
-        <span class="followers-delta-value">{delta_text}</span>
-        <span style="color:{delta_color};font-size:1.01em;">
-            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
-        </span>
-        <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-# --- Function call (replace previous call) ---
 render_linkedin_followers_analytics()
-
-# ------------------------------
-# 2. Job Function Histogram
-# ------------------------------
-if "job_function" in df.columns:
-    jobf = pd.DataFrame(df["job_function"].explode().dropna().tolist())
-    jobf_grouped = jobf.groupby("job_function")["views"].sum().reset_index()
-    fig = px.bar(
-        jobf_grouped,
-        x="job_function",
-        y="views",
-        title="Job Function & Total Views",
-        color="views",
-        color_continuous_scale="Blues"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No job function data available.")
-
-# ------------------------------
-# 3 & 4. Seniority and Company Size Histograms (side by side)
-# ------------------------------
-col1, col2 = st.columns(2)
-
-with col1:
-    if "seniority" in df.columns:
-        seniority = pd.DataFrame(df["seniority"].explode().dropna().tolist())
-        seniority_grouped = seniority.groupby("seniority")["views"].sum().reset_index()
-        fig = px.bar(
-            seniority_grouped,
-            x="seniority",
-            y="views",
-            title="Seniority & Total Views",
-            color="views",
-            color_continuous_scale="Greens"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No seniority data available.")
-
-with col2:
-    if "company_size" in df.columns:
-        compsize = pd.DataFrame(df["company_size"].explode().dropna().tolist())
-        compsize_grouped = compsize.groupby("company_size")["views"].sum().reset_index()
-        fig = px.bar(
-            compsize_grouped,
-            x="company_size",
-            y="views",
-            title="Company Size & Total Views",
-            color="views",
-            color_continuous_scale="Purples"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No company size data available.")
-
-# ------------------------------
-# 5. Industry Bubble Plot
-# ------------------------------
-if "industry" in df.columns:
-    industry = pd.DataFrame(df["industry"].explode().dropna().tolist())
-    industry_grouped = industry.groupby("industry")["views"].sum().reset_index()
-    industry_grouped["size"] = np.sqrt(industry_grouped["views"])  # scale for bubble size
-
-    fig = px.scatter(
-        industry_grouped,
-        x="industry",
-        y=["views"] * len(industry_grouped),  # dummy for y, just to plot bubbles horizontally
-        size="size",
-        color="views",
-        size_max=60,
-        title="Industry & Total Views (Bubble Plot)",
-        labels={"industry": "Industry", "views": "Total Views"},
-        color_continuous_scale="Teal"
-    )
-    fig.update_traces(yaxis=None, marker=dict(sizemode='area', line=dict(width=2, color='#888')))
-    fig.update_layout(yaxis=dict(showticklabels=False, visible=False))
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No industry data available.")
-# Call the function (left-aligned, NOT indented)
-render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
