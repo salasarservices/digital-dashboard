@@ -7,6 +7,7 @@ import json
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from pymongo import MongoClient
+import certifi
 import requests
 import pycountry
 import plotly.express as px
