@@ -1372,10 +1372,10 @@ def render_linkedin_followers_analytics():
     delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
     delta_text = f"{delta_sign}{delta:,}"
 
-    # Styling
-    st.markdown("""
+    # Styling (all HTML/CSS blocks as f-strings, safe with thousands separator)
+    st.markdown(f"""
     <style>
-    .followers-circle {
+    .followers-circle {{
         background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
         border-radius: 50%;
         width: 104px;
@@ -1390,61 +1390,61 @@ def render_linkedin_followers_analytics():
         box-shadow: 0 4px 13px rgba(63,138,224,0.14);
         transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
         cursor:pointer;
-    }
-    .followers-circle:hover {
+    }}
+    .followers-circle:hover {{
         transform: scale(1.13);
         box-shadow: 0 8px 24px rgba(63,138,224,0.15);
-    }
-    .followers-total-label {
+    }}
+    .followers-total-label {{
         text-align: center;
         font-weight: 550;
         font-size: 1.18em;
         margin-bottom: 0.25em;
         color: #2d448d;
         letter-spacing: 0.02em;
-    }
-    .followers-gained-row {
+    }}
+    .followers-gained-row {{
         display: flex;
         flex-direction: row;
         justify-content: center;
         gap: 18px;
         margin-top: 0.35em;
         margin-bottom: 0.12em;
-    }
-    .followers-gained-label {
+    }}
+    .followers-gained-label {{
         text-align: right;
         font-size: 1.10em;
         color: #225;
         font-weight: 500;
         margin-right: 6px;
-    }
-    .followers-gained-value {
+    }}
+    .followers-gained-value {{
         font-weight: 700;
         color: #2d448d;
         font-size: 1.13em;
         margin-left: 2px;
-    }
-    .followers-delta-row {
+    }}
+    .followers-delta-row {{
         text-align: center;
         font-size: 1.03em;
         font-weight: 600;
         margin-top: 0.22em;
         margin-bottom: 0.1em;
-    }
-    .followers-delta-value {
-        color: %s;
+    }}
+    .followers-delta-value {{
+        color: {delta_color};
         font-size: 1.07em;
         font-weight: 700;
         margin-right: 4px;
-    }
-    .followers-delta-label {
+    }}
+    .followers-delta-label {{
         color: #888;
         font-size: 0.97em;
         font-weight: 400;
         margin-left: 2px;
-    }
+    }}
     </style>
-    """ % delta_color, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="followers-total-label">Followers total</div>
