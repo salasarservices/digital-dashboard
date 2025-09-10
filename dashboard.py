@@ -1470,6 +1470,159 @@ def render_linkedin_followers_analytics():
 
 # --- Function call ---
 render_linkedin_followers_analytics()
+
+#----- UNIQUE VISITORS--------
+
+def render_linkedin_unique_visitors_analytics():
+    st.markdown('<div class="section-header">LinkedIn Unique Visitors Analytics</div>', unsafe_allow_html=True)
+    # --- MongoDB connection ---
+    try:
+        mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
+        db_name = "sal-lnkd"
+        collection_name = "lnkd-visitors"
+        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
+        db = client[db_name]
+        col = db[collection_name]
+        doc = col.find_one({})
+        client.close()
+    except Exception as e:
+        st.error(f"Could not connect to LinkedIn MongoDB: {e}")
+        return
+
+    if not doc or "daily_records" not in doc or not doc["daily_records"]:
+        st.info("No LinkedIn visitor analytics data found in MongoDB.")
+        return
+
+    # Extract total unique visitors from root
+    total_unique_visitors = int(doc.get("Total Unique Visitors", 0))
+
+    # Convert daily_records array to DataFrame
+    df = pd.DataFrame(doc["daily_records"])
+    # Rename keys for compatibility
+    df = df.rename(columns={"date": "Date", "Total Unique Visitors": "Total Unique Visitors (Date-wise)"})
+
+    # Date processing
+    df["Date"] = pd.to_datetime(df["Date"])
+    df["Month"] = df["Date"].dt.to_period("M")
+    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
+
+    month_options = get_last_12_month_options()
+    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
+    default_index = month_options.index(latest_month) if latest_month in month_options else 0
+    selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
+    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
+    prev_period = selected_period - 1
+    prev_month_str = prev_period.strftime('%B %Y')
+
+    cur_month_rows = df[df["Month"] == selected_period]
+    prev_month_rows = df[df["Month"] == prev_period]
+
+    visitors_gained_cur = int(cur_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not cur_month_rows.empty else 0
+    visitors_gained_prev = int(prev_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not prev_month_rows.empty else 0
+
+    delta = visitors_gained_cur - visitors_gained_prev
+    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
+    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
+    delta_text = f"{delta_sign}{delta:,}"
+
+    # Styling
+    st.markdown(f"""
+    <style>
+    .visitors-circle {{
+        background: linear-gradient(135deg, #13c4a3 0%, #69f0ae 100%);
+        border-radius: 50%;
+        width: 104px;
+        height: 104px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.6em auto;
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #fff;
+        box-shadow: 0 4px 13px rgba(19,196,163,0.14);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+    }}
+    .visitors-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 24px rgba(19,196,163,0.15);
+    }}
+    .visitors-total-label {{
+        text-align: center;
+        font-weight: 550;
+        font-size: 1.18em;
+        margin-bottom: 0.25em;
+        color: #13c4a3;
+        letter-spacing: 0.02em;
+    }}
+    .visitors-gained-row {{
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: 18px;
+        margin-top: 0.35em;
+        margin-bottom: 0.12em;
+    }}
+    .visitors-gained-label {{
+        text-align: right;
+        font-size: 1.10em;
+        color: #225;
+        font-weight: 500;
+        margin-right: 6px;
+    }}
+    .visitors-gained-value {{
+        font-weight: 700;
+        color: #13c4a3;
+        font-size: 1.13em;
+        margin-left: 2px;
+    }}
+    .visitors-delta-row {{
+        text-align: center;
+        font-size: 1.03em;
+        font-weight: 600;
+        margin-top: 0.22em;
+        margin-bottom: 0.1em;
+    }}
+    .visitors-delta-value {{
+        color: {delta_color};
+        font-size: 1.07em;
+        font-weight: 700;
+        margin-right: 4px;
+    }}
+    .visitors-delta-label {{
+        color: #888;
+        font-size: 0.97em;
+        font-weight: 400;
+        margin-left: 2px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Heading for display purposes only
+    st.markdown(f"""
+    <h2 class="visitors-total-label">Total Unique Visitors</h2>
+    <div class="visitors-circle">{total_unique_visitors:,}</div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="visitors-gained-row">
+        <div class="visitors-gained-label">
+            Unique Visitors gained in <span style="color:#13c4a3;">{selected_month_str}</span>:
+        </div>
+        <div class="visitors-gained-value">{visitors_gained_cur:,}</div>
+    </div>
+    <div class="visitors-delta-row">
+        <span class="visitors-delta-value">{delta_text}</span>
+        <span style="color:{delta_color};font-size:1.01em;">
+            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
+        </span>
+        <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Call the function
+render_linkedin_unique_visitors_analytics()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
