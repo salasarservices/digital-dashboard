@@ -1316,7 +1316,6 @@ else:
 # =========================
 
 def get_last_12_month_options():
-    """Return a list of last 12 months as 'Month YYYY' (latest first)."""
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
@@ -1331,22 +1330,23 @@ def render_linkedin_followers_analytics():
         client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         db = client[db_name]
         col = db[collection_name]
-        data = list(col.find({}))
+        doc = col.find_one({})
         client.close()
     except Exception as e:
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
         return
 
-    if not data:
+    if not doc or "daily_records" not in doc or not doc["daily_records"]:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    df = pd.DataFrame(data)
-    required_cols = ["Date", "Followers total", "Total followers (Date-wise)"]
-    for colname in required_cols:
-        if colname not in df.columns:
-            st.error(f"Required column missing: '{colname}'")
-            return
+    # Extract total followers from root
+    followers_total = int(doc.get("followers_total", 0))
+
+    # Convert daily_records array to DataFrame
+    df = pd.DataFrame(doc["daily_records"])
+    # Rename keys for compatibility
+    df = df.rename(columns={"date": "Date", "total_followers": "Total followers (Date-wise)"})
 
     # Date processing
     df["Date"] = pd.to_datetime(df["Date"])
@@ -1361,7 +1361,6 @@ def render_linkedin_followers_analytics():
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
-    followers_total = int(df.sort_values("Date", ascending=False)["Followers total"].iloc[0])
     cur_month_rows = df[df["Month"] == selected_period]
     prev_month_rows = df[df["Month"] == prev_period]
 
@@ -1468,7 +1467,7 @@ def render_linkedin_followers_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-# --- Function call (replace previous call) ---
+# --- Function call ---
 render_linkedin_followers_analytics()
 # =========================
 # FACEBOOK ANALYTICS
