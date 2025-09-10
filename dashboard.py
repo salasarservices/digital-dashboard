@@ -1342,7 +1342,7 @@ def load_linkedin_analytics_doc():
         return None
 
 # =========================
-# Main analytics section - displays all circles side by side with single month selector
+# Main analytics section - displays circles in two rows (2 circles per row)
 # =========================
 def render_linkedin_analytics():
     doc = load_linkedin_analytics_doc()
@@ -1381,7 +1381,6 @@ def render_linkedin_analytics():
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
-    # Helper function for delta color
     def get_delta_color(val, pos_color, neg_color):
         if val > 0: return pos_color
         if val < 0: return neg_color
@@ -1430,7 +1429,6 @@ def render_linkedin_analytics():
     clicks_delta_text = f"{clicks_delta_sign}{clicks_delta:,}"
 
     # --------------- Engagement Rate Data Prep -----------------
-    # Engagement rate (average for the month, compared to previous month)
     engagement_month_rows = df[df["Month"] == selected_period]
     engagement_prev_rows = df[df["Month"] == prev_period]
     engagement_cur = float(engagement_month_rows["Engagement Rate (Date-wise)"].mean()) if "Engagement Rate (Date-wise)" in engagement_month_rows else 0.0
@@ -1440,7 +1438,7 @@ def render_linkedin_analytics():
     engagement_delta_color = get_delta_color(engagement_delta, "#e67e22", "#e74c3c")
     engagement_delta_text = f"{engagement_delta_sign}{engagement_delta:.2f}"
 
-    # --------------- Styling for All Circles and Layout -----------------
+    # --------------- Styling for Circles and Layout -----------------
     st.markdown(f"""
     <style>
     .analytics-circles-row {{
@@ -1449,7 +1447,7 @@ def render_linkedin_analytics():
         justify-content: center;
         align-items: flex-start;
         gap: 60px;
-        margin-top: 2.4em;
+        margin-top: 2.1em;
         margin-bottom: 2.2em;
         flex-wrap: wrap;
     }}
@@ -1732,7 +1730,7 @@ def render_linkedin_analytics():
     </style>
     """, unsafe_allow_html=True)
 
-    # --------------- Render All Circles Side by Side -----------------
+    # --------------- Render Circles in Two Rows (2 circles per row) -----------------
     st.markdown(f"""
     <div class="analytics-circles-row">
         <div class="circle-block">
@@ -1765,6 +1763,8 @@ def render_linkedin_analytics():
                 <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
             </div>
         </div>
+    </div>
+    <div class="analytics-circles-row">
         <div class="circle-block">
             <div class="impressions-label">Total Impressions</div>
             <div class="impressions-circle">{impressions_cur:,}</div>
@@ -1795,6 +1795,8 @@ def render_linkedin_analytics():
                 <span class="clicks-delta-label">vs. previous month ({prev_month_str})</span>
             </div>
         </div>
+    </div>
+    <div class="analytics-circles-row" style="justify-content: center;">
         <div class="circle-block">
             <div class="engagement-label">Engagement Rate</div>
             <div class="engagement-circle">{engagement_cur:.2f}%</div>
