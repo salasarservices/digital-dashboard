@@ -1473,13 +1473,18 @@ render_linkedin_followers_analytics()
 
 #----- UNIQUE VISITORS--------
 
+def get_last_12_month_options():
+    today = date.today().replace(day=1)
+    months = [today - relativedelta(months=i) for i in range(12)]
+    return [d.strftime('%B %Y') for d in months]
+
 def render_linkedin_unique_visitors_analytics():
     st.markdown('<div class="section-header">LinkedIn Unique Visitors Analytics</div>', unsafe_allow_html=True)
-    # --- MongoDB connection ---
+    # MongoDB connection
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sal-lnkd"
-        collection_name = "lnkd-visitors"
+        collection_name = "lnkd-analytics"
         client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         db = client[db_name]
         col = db[collection_name]
@@ -1489,17 +1494,15 @@ def render_linkedin_unique_visitors_analytics():
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
         return
 
+    # Check daily_records and correct key
     if not doc or "daily_records" not in doc or not doc["daily_records"]:
         st.info("No LinkedIn visitor analytics data found in MongoDB.")
         return
 
-    # Extract total unique visitors from root
-    total_unique_visitors = int(doc.get("Total Unique Visitors", 0))
-
     # Convert daily_records array to DataFrame
     df = pd.DataFrame(doc["daily_records"])
     # Rename keys for compatibility
-    df = df.rename(columns={"date": "Date", "Total Unique Visitors": "Total Unique Visitors (Date-wise)"})
+    df = df.rename(columns={"date": "Date", "total_unique_visitors": "Total Unique Visitors (Date-wise)"})
 
     # Date processing
     df["Date"] = pd.to_datetime(df["Date"])
@@ -1517,7 +1520,11 @@ def render_linkedin_unique_visitors_analytics():
     cur_month_rows = df[df["Month"] == selected_period]
     prev_month_rows = df[df["Month"] == prev_period]
 
+    # Total unique visitors ever (sum of all daily records)
+    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
+    # Current month visitors
     visitors_gained_cur = int(cur_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not cur_month_rows.empty else 0
+    # Previous month visitors
     visitors_gained_prev = int(prev_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not prev_month_rows.empty else 0
 
     delta = visitors_gained_cur - visitors_gained_prev
