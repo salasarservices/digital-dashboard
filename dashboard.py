@@ -1342,23 +1342,22 @@ def load_linkedin_analytics_doc():
         return None
 
 # =========================
-# Followers Analytics Section
+# Main analytics section - displays both circles side by side with single month selector
 # =========================
-def render_linkedin_followers_analytics(doc):
-    st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
-
-    # Defensive check for document structure
+def render_linkedin_analytics():
+    doc = load_linkedin_analytics_doc()
     if not doc or "daily_records" not in doc or not doc["daily_records"]:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    # Extract total followers (all-time) from root
-    followers_total = int(doc.get("followers_total", 0))
-
     # Convert daily_records array to DataFrame for monthly aggregations
     df = pd.DataFrame(doc["daily_records"])
     # Standardize column names for processing
-    df = df.rename(columns={"date": "Date", "total_followers": "Total followers (Date-wise)"})
+    df = df.rename(columns={
+        "date": "Date",
+        "total_followers": "Total followers (Date-wise)",
+        "total_unique_visitors": "Total Unique Visitors (Date-wise)"
+    })
 
     # Date processing & grouping
     df["Date"] = pd.to_datetime(df["Date"])
@@ -1368,85 +1367,101 @@ def render_linkedin_followers_analytics(doc):
     month_options = get_last_12_month_options()
     latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
     default_index = month_options.index(latest_month) if latest_month in month_options else 0
-    selected_month_str = st.selectbox("Select Month for Followers:", month_options, index=default_index, key="followers_month")
+
+    # --------------- UI: Main Title + Month Selector -----------------
+    st.markdown("""
+    <h2 style='text-align:center; font-size:2.2em; color:#2d448d; margin-bottom:0.7em; margin-top:0.1em;'>Linkedin Analytics</h2>
+    """, unsafe_allow_html=True)
+
+    selected_month_str = st.selectbox("Select month", month_options, index=default_index, key="analytics_month")
     selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
-    # Current/Previous month followers gained
-    cur_month_rows = df[df["Month"] == selected_period]
-    prev_month_rows = df[df["Month"] == prev_period]
-    followers_gained_cur = int(cur_month_rows["Total followers (Date-wise)"].sum()) if not cur_month_rows.empty else 0
-    followers_gained_prev = int(prev_month_rows["Total followers (Date-wise)"].sum()) if not prev_month_rows.empty else 0
+    # --------------- Followers Data Prep -----------------
+    followers_total = int(doc.get("followers_total", 0))
+    followers_month_rows = df[df["Month"] == selected_period]
+    followers_prev_rows = df[df["Month"] == prev_period]
+    followers_gained_cur = int(followers_month_rows["Total followers (Date-wise)"].sum()) if not followers_month_rows.empty else 0
+    followers_gained_prev = int(followers_prev_rows["Total followers (Date-wise)"].sum()) if not followers_prev_rows.empty else 0
+    followers_delta = followers_gained_cur - followers_gained_prev
+    followers_delta_sign = "+" if followers_delta > 0 else ""
+    followers_delta_color = "#2ecc40" if followers_delta > 0 else "#ff4136" if followers_delta < 0 else "#888"
+    followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
 
-    # Delta calculation for display
-    delta = followers_gained_cur - followers_gained_prev
-    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
-    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
-    delta_text = f"{delta_sign}{delta:,}"
+    # --------------- Visitors Data Prep -----------------
+    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
+    visitors_month_rows = df[df["Month"] == selected_period]
+    visitors_prev_rows = df[df["Month"] == prev_period]
+    visitors_gained_cur = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
+    visitors_gained_prev = int(visitors_prev_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_prev_rows.empty else 0
+    visitors_delta = visitors_gained_cur - visitors_gained_prev
+    visitors_delta_sign = "+" if visitors_delta > 0 else ""
+    visitors_delta_color = "#13c4a3" if visitors_delta > 0 else "#ff4136" if visitors_delta < 0 else "#888"
+    visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # Styling for followers section
+    # --------------- Styling for Both Circles and Layout -----------------
     st.markdown(f"""
     <style>
-    .followers-circle {{
-        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
-        border-radius: 50%;
-        width: 104px;
-        height: 104px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 0.6em auto;
-        font-size: 2.5em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 13px rgba(63,138,224,0.14);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-    }}
-    .followers-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 24px rgba(63,138,224,0.15);
-    }}
-    .followers-total-label {{
-        text-align: center;
-        font-weight: 550;
-        font-size: 1.18em;
-        margin-bottom: 0.25em;
-        color: #2d448d;
-        letter-spacing: 0.02em;
-    }}
-    .followers-gained-row {{
+    .analytics-circles-row {{
         display: flex;
         flex-direction: row;
         justify-content: center;
-        gap: 18px;
-        margin-top: 0.35em;
-        margin-bottom: 0.12em;
+        align-items: flex-start;
+        gap: 60px;
+        margin-top: 2.4em;
+        margin-bottom: 2.2em;
     }}
-    .followers-gained-label {{
-        text-align: right;
-        font-size: 1.10em;
-        color: #225;
-        font-weight: 500;
-        margin-right: 6px;
+    .circle-block {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 320px;
     }}
-    .followers-gained-value {{
-        font-weight: 700;
+    .followers-circle {{
+        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
+        border-radius: 50%;
+        width: 140px;
+        height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3.1em;
+        font-weight: bold;
+        color: #fff;
+        box-shadow: 0 4px 18px rgba(63,138,224,0.18);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+        margin-bottom: 0.7em;
+    }}
+    .followers-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 32px rgba(63,138,224,0.20);
+    }}
+    .followers-total-label {{
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.35em;
+        margin-bottom: 0.35em;
         color: #2d448d;
-        font-size: 1.13em;
-        margin-left: 2px;
+    }}
+    .followers-gained-row {{
+        margin-bottom: 0.07em;
+        font-size: 1.08em;
+        font-weight: 500;
+        color: #2d448d;
+        text-align: center;
     }}
     .followers-delta-row {{
         text-align: center;
-        font-size: 1.03em;
+        font-size: 1.07em;
         font-weight: 600;
-        margin-top: 0.22em;
+        margin-top: 0.14em;
         margin-bottom: 0.1em;
     }}
     .followers-delta-value {{
-        color: {delta_color};
-        font-size: 1.07em;
+        color: {followers_delta_color};
+        font-size: 1.09em;
         font-weight: 700;
         margin-right: 4px;
     }}
@@ -1456,138 +1471,51 @@ def render_linkedin_followers_analytics(doc):
         font-weight: 400;
         margin-left: 2px;
     }}
-    </style>
-    """, unsafe_allow_html=True)
 
-    # Display section: Total Followers in an animated circle
-    st.markdown(f"""
-    <h2 class="followers-total-label">Total Followers</h2>
-    <div class="followers-circle">{followers_total:,}</div>
-    """, unsafe_allow_html=True)
-
-    # Followers gained this month and delta vs previous month
-    st.markdown(f"""
-    <div class="followers-gained-row">
-        <div class="followers-gained-label">
-            Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
-        </div>
-        <div class="followers-gained-value">{followers_gained_cur:,}</div>
-    </div>
-    <div class="followers-delta-row">
-        <span class="followers-delta-value">{delta_text}</span>
-        <span style="color:{delta_color};font-size:1.01em;">
-            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
-        </span>
-        <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-# =========================
-# Unique Visitors Analytics Section
-# =========================
-def render_linkedin_unique_visitors_analytics(doc):
-    st.markdown('<div class="section-header">LinkedIn Unique Visitors Analytics</div>', unsafe_allow_html=True)
-
-    # Defensive check for document structure
-    if not doc or "daily_records" not in doc or not doc["daily_records"]:
-        st.info("No LinkedIn visitor analytics data found in MongoDB.")
-        return
-
-    # Convert daily_records array to DataFrame for monthly aggregations
-    df = pd.DataFrame(doc["daily_records"])
-    # Standardize column names for processing
-    df = df.rename(columns={"date": "Date", "total_unique_visitors": "Total Unique Visitors (Date-wise)"})
-
-    # Date processing & grouping
-    df["Date"] = pd.to_datetime(df["Date"])
-    df["Month"] = df["Date"].dt.to_period("M")
-    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
-
-    month_options = get_last_12_month_options()
-    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
-    default_index = month_options.index(latest_month) if latest_month in month_options else 0
-    selected_month_str = st.selectbox("Select Month for Unique Visitors:", month_options, index=default_index, key="unique_visitors_month")
-    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
-    prev_period = selected_period - 1
-    prev_month_str = prev_period.strftime('%B %Y')
-
-    # Current/Previous month unique visitors gained
-    cur_month_rows = df[df["Month"] == selected_period]
-    prev_month_rows = df[df["Month"] == prev_period]
-    visitors_gained_cur = int(cur_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not cur_month_rows.empty else 0
-    visitors_gained_prev = int(prev_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not prev_month_rows.empty else 0
-
-    # Total unique visitors (all time, sum of daily records)
-    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
-
-    # Delta calculation for display
-    delta = visitors_gained_cur - visitors_gained_prev
-    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
-    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
-    delta_text = f"{delta_sign}{delta:,}"
-
-    # Styling for unique visitors section
-    st.markdown(f"""
-    <style>
     .visitors-circle {{
         background: linear-gradient(135deg, #13c4a3 0%, #69f0ae 100%);
         border-radius: 50%;
-        width: 104px;
-        height: 104px;
+        width: 140px;
+        height: 140px;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 0.6em auto;
-        font-size: 2.5em;
+        font-size: 3.1em;
         font-weight: bold;
         color: #fff;
-        box-shadow: 0 4px 13px rgba(19,196,163,0.14);
+        box-shadow: 0 4px 18px rgba(19,196,163,0.18);
         transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
         cursor:pointer;
+        margin-bottom: 0.7em;
     }}
     .visitors-circle:hover {{
         transform: scale(1.13);
-        box-shadow: 0 8px 24px rgba(19,196,163,0.15);
+        box-shadow: 0 8px 32px rgba(19,196,163,0.20);
     }}
     .visitors-total-label {{
         text-align: center;
-        font-weight: 550;
-        font-size: 1.18em;
-        margin-bottom: 0.25em;
+        font-weight: 600;
+        font-size: 1.35em;
+        margin-bottom: 0.35em;
         color: #13c4a3;
-        letter-spacing: 0.02em;
     }}
     .visitors-gained-row {{
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        gap: 18px;
-        margin-top: 0.35em;
-        margin-bottom: 0.12em;
-    }}
-    .visitors-gained-label {{
-        text-align: right;
-        font-size: 1.10em;
-        color: #225;
+        margin-bottom: 0.07em;
+        font-size: 1.08em;
         font-weight: 500;
-        margin-right: 6px;
-    }}
-    .visitors-gained-value {{
-        font-weight: 700;
         color: #13c4a3;
-        font-size: 1.13em;
-        margin-left: 2px;
+        text-align: center;
     }}
     .visitors-delta-row {{
         text-align: center;
-        font-size: 1.03em;
+        font-size: 1.07em;
         font-weight: 600;
-        margin-top: 0.22em;
+        margin-top: 0.14em;
         margin-bottom: 0.1em;
     }}
     .visitors-delta-value {{
-        color: {delta_color};
-        font-size: 1.07em;
+        color: {visitors_delta_color};
+        font-size: 1.09em;
         font-weight: 700;
         margin-right: 4px;
     }}
@@ -1600,35 +1528,44 @@ def render_linkedin_unique_visitors_analytics(doc):
     </style>
     """, unsafe_allow_html=True)
 
-    # Display section: Total Unique Visitors in an animated circle
+    # --------------- Render Both Circles Side by Side -----------------
     st.markdown(f"""
-    <h2 class="visitors-total-label">Total Unique Visitors</h2>
-    <div class="visitors-circle">{total_unique_visitors:,}</div>
-    """, unsafe_allow_html=True)
-
-    # Unique visitors gained this month and delta vs previous month
-    st.markdown(f"""
-    <div class="visitors-gained-row">
-        <div class="visitors-gained-label">
-            Unique Visitors gained in <span style="color:#13c4a3;">{selected_month_str}</span>:
+    <div class="analytics-circles-row">
+        <div class="circle-block">
+            <div class="followers-total-label">Total Followers</div>
+            <div class="followers-circle">{followers_total:,}</div>
+            <div class="followers-gained-row">
+                Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
+                <b>{followers_gained_cur:,}</b>
+            </div>
+            <div class="followers-delta-row">
+                <span class="followers-delta-value">{followers_delta_text}</span>
+                <span style="color:{followers_delta_color};font-size:1.01em;">
+                    {"↑" if followers_delta > 0 else "↓" if followers_delta < 0 else ""}
+                </span>
+                <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
+            </div>
         </div>
-        <div class="visitors-gained-value">{visitors_gained_cur:,}</div>
-    </div>
-    <div class="visitors-delta-row">
-        <span class="visitors-delta-value">{delta_text}</span>
-        <span style="color:{delta_color};font-size:1.01em;">
-            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
-        </span>
-        <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
+        <div class="circle-block">
+            <div class="visitors-total-label">Total Unique Visitors</div>
+            <div class="visitors-circle">{total_unique_visitors:,}</div>
+            <div class="visitors-gained-row">
+                Unique Visitors gained in <span style="color:#13c4a3;">{selected_month_str}</span>:
+                <b>{visitors_gained_cur:,}</b>
+            </div>
+            <div class="visitors-delta-row">
+                <span class="visitors-delta-value">{visitors_delta_text}</span>
+                <span style="color:{visitors_delta_color};font-size:1.01em;">
+                    {"↑" if visitors_delta > 0 else "↓" if visitors_delta < 0 else ""}
+                </span>
+                <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-# =========================
-# MAIN: Render Both Sections
-# =========================
-doc = load_linkedin_analytics_doc()
-render_linkedin_followers_analytics(doc)
-render_linkedin_unique_visitors_analytics(doc)
+# MAIN: Render Analytics Section
+render_linkedin_analytics()
 
 # =========================
 # FACEBOOK ANALYTICS
