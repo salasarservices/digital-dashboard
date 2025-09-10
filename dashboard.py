@@ -1312,12 +1312,6 @@ else:
 # LINKEDIN ANALYTICS
 # =========================
 
-import streamlit as st
-import pandas as pd
-from datetime import datetime, date
-from pymongo import MongoClient
-from dateutil.relativedelta import relativedelta
-
 def get_last_12_month_options():
     """Return a list of last 12 months as 'Month YYYY' (latest first)."""
     today = date.today().replace(day=1)
@@ -1328,8 +1322,8 @@ def render_linkedin_followers_analytics():
     st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-        db_name = "sallnkddata"
-        collection_name = "lnkddata"
+        db_name = "sal-lnkd"
+        collection_name = "lnkd-analytics"
         client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000)
         db = client[db_name]
         col = db[collection_name]
