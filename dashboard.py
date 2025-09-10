@@ -1315,14 +1315,18 @@ else:
 # LINKEDIN ANALYTICS
 # =========================
 
+# =========================
+# Utility: Generate last 12 months for dropdown
+# =========================
 def get_last_12_month_options():
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
 
-def render_linkedin_followers_analytics():
-    st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
-    # --- MongoDB connection ---
+# =========================
+# MongoDB: Load analytics document
+# =========================
+def load_linkedin_analytics_doc():
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sal-lnkd"
@@ -1332,23 +1336,31 @@ def render_linkedin_followers_analytics():
         col = db[collection_name]
         doc = col.find_one({})
         client.close()
+        return doc
     except Exception as e:
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
-        return
+        return None
 
+# =========================
+# Followers Analytics Section
+# =========================
+def render_linkedin_followers_analytics(doc):
+    st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
+
+    # Defensive check for document structure
     if not doc or "daily_records" not in doc or not doc["daily_records"]:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    # Extract total followers from root
+    # Extract total followers (all-time) from root
     followers_total = int(doc.get("followers_total", 0))
 
-    # Convert daily_records array to DataFrame
+    # Convert daily_records array to DataFrame for monthly aggregations
     df = pd.DataFrame(doc["daily_records"])
-    # Rename keys for compatibility
+    # Standardize column names for processing
     df = df.rename(columns={"date": "Date", "total_followers": "Total followers (Date-wise)"})
 
-    # Date processing
+    # Date processing & grouping
     df["Date"] = pd.to_datetime(df["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
     df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
@@ -1356,23 +1368,24 @@ def render_linkedin_followers_analytics():
     month_options = get_last_12_month_options()
     latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
     default_index = month_options.index(latest_month) if latest_month in month_options else 0
-    selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
+    selected_month_str = st.selectbox("Select Month for Followers:", month_options, index=default_index, key="followers_month")
     selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
+    # Current/Previous month followers gained
     cur_month_rows = df[df["Month"] == selected_period]
     prev_month_rows = df[df["Month"] == prev_period]
-
     followers_gained_cur = int(cur_month_rows["Total followers (Date-wise)"].sum()) if not cur_month_rows.empty else 0
     followers_gained_prev = int(prev_month_rows["Total followers (Date-wise)"].sum()) if not prev_month_rows.empty else 0
 
+    # Delta calculation for display
     delta = followers_gained_cur - followers_gained_prev
     delta_sign = "+" if delta > 0 else ""  # minus shows automatically
     delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
     delta_text = f"{delta_sign}{delta:,}"
 
-    # Styling (all HTML/CSS blocks as f-strings, safe with thousands separator)
+    # Styling for followers section
     st.markdown(f"""
     <style>
     .followers-circle {{
@@ -1446,12 +1459,13 @@ def render_linkedin_followers_analytics():
     </style>
     """, unsafe_allow_html=True)
 
-    # Changed heading from "Followers total" to "Total Followers" and set as h2
+    # Display section: Total Followers in an animated circle
     st.markdown(f"""
     <h2 class="followers-total-label">Total Followers</h2>
     <div class="followers-circle">{followers_total:,}</div>
     """, unsafe_allow_html=True)
 
+    # Followers gained this month and delta vs previous month
     st.markdown(f"""
     <div class="followers-gained-row">
         <div class="followers-gained-label">
@@ -1468,43 +1482,23 @@ def render_linkedin_followers_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-# --- Function call ---
-render_linkedin_followers_analytics()
-
-#----- UNIQUE VISITORS--------
-
-def get_last_12_month_options():
-    today = date.today().replace(day=1)
-    months = [today - relativedelta(months=i) for i in range(12)]
-    return [d.strftime('%B %Y') for d in months]
-
-def render_linkedin_unique_visitors_analytics():
+# =========================
+# Unique Visitors Analytics Section
+# =========================
+def render_linkedin_unique_visitors_analytics(doc):
     st.markdown('<div class="section-header">LinkedIn Unique Visitors Analytics</div>', unsafe_allow_html=True)
-    # MongoDB connection
-    try:
-        mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-        db_name = "sal-lnkd"
-        collection_name = "lnkd-analytics"
-        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
-        db = client[db_name]
-        col = db[collection_name]
-        doc = col.find_one({})
-        client.close()
-    except Exception as e:
-        st.error(f"Could not connect to LinkedIn MongoDB: {e}")
-        return
 
-    # Check daily_records and correct key
+    # Defensive check for document structure
     if not doc or "daily_records" not in doc or not doc["daily_records"]:
         st.info("No LinkedIn visitor analytics data found in MongoDB.")
         return
 
-    # Convert daily_records array to DataFrame
+    # Convert daily_records array to DataFrame for monthly aggregations
     df = pd.DataFrame(doc["daily_records"])
-    # Rename keys for compatibility
+    # Standardize column names for processing
     df = df.rename(columns={"date": "Date", "total_unique_visitors": "Total Unique Visitors (Date-wise)"})
 
-    # Date processing
+    # Date processing & grouping
     df["Date"] = pd.to_datetime(df["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
     df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
@@ -1512,27 +1506,27 @@ def render_linkedin_unique_visitors_analytics():
     month_options = get_last_12_month_options()
     latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
     default_index = month_options.index(latest_month) if latest_month in month_options else 0
-    selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
+    selected_month_str = st.selectbox("Select Month for Unique Visitors:", month_options, index=default_index, key="unique_visitors_month")
     selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
+    # Current/Previous month unique visitors gained
     cur_month_rows = df[df["Month"] == selected_period]
     prev_month_rows = df[df["Month"] == prev_period]
-
-    # Total unique visitors ever (sum of all daily records)
-    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
-    # Current month visitors
     visitors_gained_cur = int(cur_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not cur_month_rows.empty else 0
-    # Previous month visitors
     visitors_gained_prev = int(prev_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not prev_month_rows.empty else 0
 
+    # Total unique visitors (all time, sum of daily records)
+    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
+
+    # Delta calculation for display
     delta = visitors_gained_cur - visitors_gained_prev
     delta_sign = "+" if delta > 0 else ""  # minus shows automatically
     delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
     delta_text = f"{delta_sign}{delta:,}"
 
-    # Styling
+    # Styling for unique visitors section
     st.markdown(f"""
     <style>
     .visitors-circle {{
@@ -1606,12 +1600,13 @@ def render_linkedin_unique_visitors_analytics():
     </style>
     """, unsafe_allow_html=True)
 
-    # Heading for display purposes only
+    # Display section: Total Unique Visitors in an animated circle
     st.markdown(f"""
     <h2 class="visitors-total-label">Total Unique Visitors</h2>
     <div class="visitors-circle">{total_unique_visitors:,}</div>
     """, unsafe_allow_html=True)
 
+    # Unique visitors gained this month and delta vs previous month
     st.markdown(f"""
     <div class="visitors-gained-row">
         <div class="visitors-gained-label">
@@ -1628,8 +1623,13 @@ def render_linkedin_unique_visitors_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-# Call the function
-render_linkedin_unique_visitors_analytics()
+# =========================
+# MAIN: Render Both Sections
+# =========================
+doc = load_linkedin_analytics_doc()
+render_linkedin_followers_analytics(doc)
+render_linkedin_unique_visitors_analytics(doc)
+
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
