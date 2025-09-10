@@ -1342,7 +1342,7 @@ def load_linkedin_analytics_doc():
         return None
 
 # =========================
-# Main analytics section - displays both circles side by side with single month selector
+# Main analytics section - displays all circles side by side with single month selector
 # =========================
 def render_linkedin_analytics():
     doc = load_linkedin_analytics_doc()
@@ -1356,7 +1356,10 @@ def render_linkedin_analytics():
     df = df.rename(columns={
         "date": "Date",
         "total_followers": "Total followers (Date-wise)",
-        "total_unique_visitors": "Total Unique Visitors (Date-wise)"
+        "total_unique_visitors": "Total Unique Visitors (Date-wise)",
+        "impressions": "Impressions (Date-wise)",
+        "clicks": "Clicks (Date-wise)",
+        "engagement_rate": "Engagement Rate (Date-wise)"
     })
 
     # Date processing & grouping
@@ -1378,6 +1381,12 @@ def render_linkedin_analytics():
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
+    # Helper function for delta color
+    def get_delta_color(val, pos_color, neg_color):
+        if val > 0: return pos_color
+        if val < 0: return neg_color
+        return "#888"
+
     # --------------- Followers Data Prep -----------------
     followers_total = int(doc.get("followers_total", 0))
     followers_month_rows = df[df["Month"] == selected_period]
@@ -1386,22 +1395,52 @@ def render_linkedin_analytics():
     followers_gained_prev = int(followers_prev_rows["Total followers (Date-wise)"].sum()) if not followers_prev_rows.empty else 0
     followers_delta = followers_gained_cur - followers_gained_prev
     followers_delta_sign = "+" if followers_delta > 0 else ""
-    followers_delta_color = "#2ecc40" if followers_delta > 0 else "#ff4136" if followers_delta < 0 else "#888"
+    followers_delta_color = get_delta_color(followers_delta, "#2ecc40", "#ff4136")
     followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
 
     # --------------- Visitors Data Prep -----------------
-    # Show total unique visitors for selected month only (not all time)
+    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
     visitors_month_rows = df[df["Month"] == selected_period]
     visitors_prev_rows = df[df["Month"] == prev_period]
-    total_unique_visitors = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
-    visitors_gained_cur = total_unique_visitors
+    visitors_gained_cur = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
     visitors_gained_prev = int(visitors_prev_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_prev_rows.empty else 0
     visitors_delta = visitors_gained_cur - visitors_gained_prev
     visitors_delta_sign = "+" if visitors_delta > 0 else ""
-    visitors_delta_color = "#13c4a3" if visitors_delta > 0 else "#ff4136" if visitors_delta < 0 else "#888"
+    visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
     visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # --------------- Styling for Both Circles and Layout -----------------
+    # --------------- Impressions Data Prep -----------------
+    impressions_month_rows = df[df["Month"] == selected_period]
+    impressions_prev_rows = df[df["Month"] == prev_period]
+    impressions_cur = int(impressions_month_rows["Impressions (Date-wise)"].sum()) if "Impressions (Date-wise)" in impressions_month_rows else 0
+    impressions_prev = int(impressions_prev_rows["Impressions (Date-wise)"].sum()) if "Impressions (Date-wise)" in impressions_prev_rows else 0
+    impressions_delta = impressions_cur - impressions_prev
+    impressions_delta_sign = "+" if impressions_delta > 0 else ""
+    impressions_delta_color = get_delta_color(impressions_delta, "#9b59b6", "#e74c3c")
+    impressions_delta_text = f"{impressions_delta_sign}{impressions_delta:,}"
+
+    # --------------- Clicks Data Prep -----------------
+    clicks_month_rows = df[df["Month"] == selected_period]
+    clicks_prev_rows = df[df["Month"] == prev_period]
+    clicks_cur = int(clicks_month_rows["Clicks (Date-wise)"].sum()) if "Clicks (Date-wise)" in clicks_month_rows else 0
+    clicks_prev = int(clicks_prev_rows["Clicks (Date-wise)"].sum()) if "Clicks (Date-wise)" in clicks_prev_rows else 0
+    clicks_delta = clicks_cur - clicks_prev
+    clicks_delta_sign = "+" if clicks_delta > 0 else ""
+    clicks_delta_color = get_delta_color(clicks_delta, "#16a085", "#e74c3c")
+    clicks_delta_text = f"{clicks_delta_sign}{clicks_delta:,}"
+
+    # --------------- Engagement Rate Data Prep -----------------
+    # Engagement rate (average for the month, compared to previous month)
+    engagement_month_rows = df[df["Month"] == selected_period]
+    engagement_prev_rows = df[df["Month"] == prev_period]
+    engagement_cur = float(engagement_month_rows["Engagement Rate (Date-wise)"].mean()) if "Engagement Rate (Date-wise)" in engagement_month_rows else 0.0
+    engagement_prev = float(engagement_prev_rows["Engagement Rate (Date-wise)"].mean()) if "Engagement Rate (Date-wise)" in engagement_prev_rows else 0.0
+    engagement_delta = engagement_cur - engagement_prev
+    engagement_delta_sign = "+" if engagement_delta > 0 else ""
+    engagement_delta_color = get_delta_color(engagement_delta, "#e67e22", "#e74c3c")
+    engagement_delta_text = f"{engagement_delta_sign}{engagement_delta:.2f}"
+
+    # --------------- Styling for All Circles and Layout -----------------
     st.markdown(f"""
     <style>
     .analytics-circles-row {{
@@ -1412,12 +1451,14 @@ def render_linkedin_analytics():
         gap: 60px;
         margin-top: 2.4em;
         margin-bottom: 2.2em;
+        flex-wrap: wrap;
     }}
     .circle-block {{
         display: flex;
         flex-direction: column;
         align-items: center;
-        min-width: 320px;
+        min-width: 220px;
+        max-width: 260px;
     }}
     .followers-circle {{
         background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
@@ -1427,7 +1468,7 @@ def render_linkedin_analytics():
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3.1em;
+        font-size: 2.7em;
         font-weight: bold;
         color: #fff;
         box-shadow: 0 4px 18px rgba(63,138,224,0.18);
@@ -1442,20 +1483,20 @@ def render_linkedin_analytics():
     .followers-total-label {{
         text-align: center;
         font-weight: 600;
-        font-size: 1.35em;
-        margin-bottom: 0.35em;
+        font-size: 1.12em;
+        margin-bottom: 0.28em;
         color: #2d448d;
     }}
     .followers-gained-row {{
         margin-bottom: 0.07em;
-        font-size: 1.08em;
+        font-size: 1em;
         font-weight: 500;
         color: #2d448d;
         text-align: center;
     }}
     .followers-delta-row {{
         text-align: center;
-        font-size: 1.07em;
+        font-size: 0.98em;
         font-weight: 600;
         margin-top: 0.14em;
         margin-bottom: 0.1em;
@@ -1468,7 +1509,7 @@ def render_linkedin_analytics():
     }}
     .followers-delta-label {{
         color: #888;
-        font-size: 0.97em;
+        font-size: 0.94em;
         font-weight: 400;
         margin-left: 2px;
     }}
@@ -1481,7 +1522,7 @@ def render_linkedin_analytics():
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3.1em;
+        font-size: 2.7em;
         font-weight: bold;
         color: #fff;
         box-shadow: 0 4px 18px rgba(19,196,163,0.18);
@@ -1496,20 +1537,20 @@ def render_linkedin_analytics():
     .visitors-total-label {{
         text-align: center;
         font-weight: 600;
-        font-size: 1.35em;
-        margin-bottom: 0.35em;
+        font-size: 1.12em;
+        margin-bottom: 0.28em;
         color: #13c4a3;
     }}
     .visitors-gained-row {{
         margin-bottom: 0.07em;
-        font-size: 1.08em;
+        font-size: 1em;
         font-weight: 500;
         color: #13c4a3;
         text-align: center;
     }}
     .visitors-delta-row {{
         text-align: center;
-        font-size: 1.07em;
+        font-size: 0.98em;
         font-weight: 600;
         margin-top: 0.14em;
         margin-bottom: 0.1em;
@@ -1522,14 +1563,176 @@ def render_linkedin_analytics():
     }}
     .visitors-delta-label {{
         color: #888;
-        font-size: 0.97em;
+        font-size: 0.94em;
+        font-weight: 400;
+        margin-left: 2px;
+    }}
+
+    .impressions-circle {{
+        background: linear-gradient(135deg, #a29bfe 0%, #dfe6e9 100%);
+        border-radius: 50%;
+        width: 140px;
+        height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.7em;
+        font-weight: bold;
+        color: #6c5ce7;
+        box-shadow: 0 4px 18px rgba(162,155,254,0.14);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+        margin-bottom: 0.7em;
+    }}
+    .impressions-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 32px rgba(162,155,254,0.18);
+    }}
+    .impressions-label {{
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.12em;
+        margin-bottom: 0.28em;
+        color: #6c5ce7;
+    }}
+    .impressions-gained-row {{
+        margin-bottom: 0.07em;
+        font-size: 1em;
+        font-weight: 500;
+        color: #6c5ce7;
+        text-align: center;
+    }}
+    .impressions-delta-row {{
+        text-align: center;
+        font-size: 0.98em;
+        font-weight: 600;
+        margin-top: 0.14em;
+        margin-bottom: 0.1em;
+    }}
+    .impressions-delta-value {{
+        color: {impressions_delta_color};
+        font-size: 1.09em;
+        font-weight: 700;
+        margin-right: 4px;
+    }}
+    .impressions-delta-label {{
+        color: #888;
+        font-size: 0.94em;
+        font-weight: 400;
+        margin-left: 2px;
+    }}
+
+    .clicks-circle {{
+        background: linear-gradient(135deg, #00b894 0%, #55efc4 100%);
+        border-radius: 50%;
+        width: 140px;
+        height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.7em;
+        font-weight: bold;
+        color: #00b894;
+        box-shadow: 0 4px 18px rgba(0,184,148,0.14);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+        margin-bottom: 0.7em;
+    }}
+    .clicks-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 32px rgba(0,184,148,0.18);
+    }}
+    .clicks-label {{
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.12em;
+        margin-bottom: 0.28em;
+        color: #00b894;
+    }}
+    .clicks-gained-row {{
+        margin-bottom: 0.07em;
+        font-size: 1em;
+        font-weight: 500;
+        color: #00b894;
+        text-align: center;
+    }}
+    .clicks-delta-row {{
+        text-align: center;
+        font-size: 0.98em;
+        font-weight: 600;
+        margin-top: 0.14em;
+        margin-bottom: 0.1em;
+    }}
+    .clicks-delta-value {{
+        color: {clicks_delta_color};
+        font-size: 1.09em;
+        font-weight: 700;
+        margin-right: 4px;
+    }}
+    .clicks-delta-label {{
+        color: #888;
+        font-size: 0.94em;
+        font-weight: 400;
+        margin-left: 2px;
+    }}
+
+    .engagement-circle {{
+        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        border-radius: 50%;
+        width: 140px;
+        height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.7em;
+        font-weight: bold;
+        color: #e67e22;
+        box-shadow: 0 4px 18px rgba(255,234,167,0.13);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+        margin-bottom: 0.7em;
+    }}
+    .engagement-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 32px rgba(255,234,167,0.18);
+    }}
+    .engagement-label {{
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.12em;
+        margin-bottom: 0.28em;
+        color: #e67e22;
+    }}
+    .engagement-gained-row {{
+        margin-bottom: 0.07em;
+        font-size: 1em;
+        font-weight: 500;
+        color: #e67e22;
+        text-align: center;
+    }}
+    .engagement-delta-row {{
+        text-align: center;
+        font-size: 0.98em;
+        font-weight: 600;
+        margin-top: 0.14em;
+        margin-bottom: 0.1em;
+    }}
+    .engagement-delta-value {{
+        color: {engagement_delta_color};
+        font-size: 1.09em;
+        font-weight: 700;
+        margin-right: 4px;
+    }}
+    .engagement-delta-label {{
+        color: #888;
+        font-size: 0.94em;
         font-weight: 400;
         margin-left: 2px;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-    # --------------- Render Both Circles Side by Side -----------------
+    # --------------- Render All Circles Side by Side -----------------
     st.markdown(f"""
     <div class="analytics-circles-row">
         <div class="circle-block">
@@ -1560,6 +1763,51 @@ def render_linkedin_analytics():
                     {"↑" if visitors_delta > 0 else "↓" if visitors_delta < 0 else ""}
                 </span>
                 <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
+            </div>
+        </div>
+        <div class="circle-block">
+            <div class="impressions-label">Total Impressions</div>
+            <div class="impressions-circle">{impressions_cur:,}</div>
+            <div class="impressions-gained-row">
+                Impressions in <span style="color:#6c5ce7;">{selected_month_str}</span>:
+                <b>{impressions_cur:,}</b>
+            </div>
+            <div class="impressions-delta-row">
+                <span class="impressions-delta-value">{impressions_delta_text}</span>
+                <span style="color:{impressions_delta_color};font-size:1.01em;">
+                    {"↑" if impressions_delta > 0 else "↓" if impressions_delta < 0 else ""}
+                </span>
+                <span class="impressions-delta-label">vs. previous month ({prev_month_str})</span>
+            </div>
+        </div>
+        <div class="circle-block">
+            <div class="clicks-label">Clicks</div>
+            <div class="clicks-circle">{clicks_cur:,}</div>
+            <div class="clicks-gained-row">
+                Clicks in <span style="color:#00b894;">{selected_month_str}</span>:
+                <b>{clicks_cur:,}</b>
+            </div>
+            <div class="clicks-delta-row">
+                <span class="clicks-delta-value">{clicks_delta_text}</span>
+                <span style="color:{clicks_delta_color};font-size:1.01em;">
+                    {"↑" if clicks_delta > 0 else "↓" if clicks_delta < 0 else ""}
+                </span>
+                <span class="clicks-delta-label">vs. previous month ({prev_month_str})</span>
+            </div>
+        </div>
+        <div class="circle-block">
+            <div class="engagement-label">Engagement Rate</div>
+            <div class="engagement-circle">{engagement_cur:.2f}%</div>
+            <div class="engagement-gained-row">
+                Engagement Rate in <span style="color:#e67e22;">{selected_month_str}</span>:
+                <b>{engagement_cur:.2f}%</b>
+            </div>
+            <div class="engagement-delta-row">
+                <span class="engagement-delta-value">{engagement_delta_text}%</span>
+                <span style="color:{engagement_delta_color};font-size:1.01em;">
+                    {"↑" if engagement_delta > 0 else "↓" if engagement_delta < 0 else ""}
+                </span>
+                <span class="engagement-delta-label">vs. previous month ({prev_month_str})</span>
             </div>
         </div>
     </div>
