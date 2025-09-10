@@ -1446,8 +1446,9 @@ def render_linkedin_followers_analytics():
     </style>
     """, unsafe_allow_html=True)
 
+    # Changed heading from "Followers total" to "Total Followers" and set as h2
     st.markdown(f"""
-    <div class="followers-total-label">Followers total</div>
+    <h2 class="followers-total-label">Total Followers</h2>
     <div class="followers-circle">{followers_total:,}</div>
     """, unsafe_allow_html=True)
 
