@@ -1316,21 +1316,19 @@ else:
 # =========================
 
 def get_last_12_month_options():
+    """Return a list of last 12 months as 'Month YYYY' (latest first)."""
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
 
 def render_linkedin_followers_analytics():
     st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
+    # --- MongoDB connection ---
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sal-lnkd"
         collection_name = "lnkd-analytics"
-        client = MongoClient(
-            mongo_uri_linkedin,
-            serverSelectionTimeoutMS=5000,
-            tlsCAFile=certifi.where()  # <--- this fixes most SSL handshake errors!
-        )
+        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         db = client[db_name]
         col = db[collection_name]
         data = list(col.find({}))
@@ -1343,9 +1341,134 @@ def render_linkedin_followers_analytics():
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    # ... (rest of your code unchanged)
-    # Paste the function body from your previous working code here
+    df = pd.DataFrame(data)
+    required_cols = ["Date", "Followers total", "Total followers (Date-wise)"]
+    for colname in required_cols:
+        if colname not in df.columns:
+            st.error(f"Required column missing: '{colname}'")
+            return
 
+    # Date processing
+    df["Date"] = pd.to_datetime(df["Date"])
+    df["Month"] = df["Date"].dt.to_period("M")
+    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
+
+    month_options = get_last_12_month_options()
+    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
+    default_index = month_options.index(latest_month) if latest_month in month_options else 0
+    selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
+    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
+    prev_period = selected_period - 1
+    prev_month_str = prev_period.strftime('%B %Y')
+
+    followers_total = int(df.sort_values("Date", ascending=False)["Followers total"].iloc[0])
+    cur_month_rows = df[df["Month"] == selected_period]
+    prev_month_rows = df[df["Month"] == prev_period]
+
+    followers_gained_cur = int(cur_month_rows["Total followers (Date-wise)"].sum()) if not cur_month_rows.empty else 0
+    followers_gained_prev = int(prev_month_rows["Total followers (Date-wise)"].sum()) if not prev_month_rows.empty else 0
+
+    delta = followers_gained_cur - followers_gained_prev
+    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
+    delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
+    delta_text = f"{delta_sign}{delta:,}"
+
+    # Styling
+    st.markdown("""
+    <style>
+    .followers-circle {
+        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
+        border-radius: 50%;
+        width: 104px;
+        height: 104px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.6em auto;
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #fff;
+        box-shadow: 0 4px 13px rgba(63,138,224,0.14);
+        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
+        cursor:pointer;
+    }
+    .followers-circle:hover {
+        transform: scale(1.13);
+        box-shadow: 0 8px 24px rgba(63,138,224,0.15);
+    }
+    .followers-total-label {
+        text-align: center;
+        font-weight: 550;
+        font-size: 1.18em;
+        margin-bottom: 0.25em;
+        color: #2d448d;
+        letter-spacing: 0.02em;
+    }
+    .followers-gained-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: 18px;
+        margin-top: 0.35em;
+        margin-bottom: 0.12em;
+    }
+    .followers-gained-label {
+        text-align: right;
+        font-size: 1.10em;
+        color: #225;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    .followers-gained-value {
+        font-weight: 700;
+        color: #2d448d;
+        font-size: 1.13em;
+        margin-left: 2px;
+    }
+    .followers-delta-row {
+        text-align: center;
+        font-size: 1.03em;
+        font-weight: 600;
+        margin-top: 0.22em;
+        margin-bottom: 0.1em;
+    }
+    .followers-delta-value {
+        color: %s;
+        font-size: 1.07em;
+        font-weight: 700;
+        margin-right: 4px;
+    }
+    .followers-delta-label {
+        color: #888;
+        font-size: 0.97em;
+        font-weight: 400;
+        margin-left: 2px;
+    }
+    </style>
+    """ % delta_color, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="followers-total-label">Followers total</div>
+    <div class="followers-circle">{followers_total:,}</div>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="followers-gained-row">
+        <div class="followers-gained-label">
+            Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
+        </div>
+        <div class="followers-gained-value">{followers_gained_cur:,}</div>
+    </div>
+    <div class="followers-delta-row">
+        <span class="followers-delta-value">{delta_text}</span>
+        <span style="color:{delta_color};font-size:1.01em;">
+            {"↑" if delta > 0 else "↓" if delta < 0 else ""} 
+        </span>
+        <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- Function call (replace previous call) ---
 render_linkedin_followers_analytics()
 # =========================
 # FACEBOOK ANALYTICS
