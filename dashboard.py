@@ -1320,6 +1320,7 @@ def get_last_12_month_options():
 
 def render_linkedin_followers_analytics():
     st.markdown('<div class="section-header">LinkedIn Followers Analytics</div>', unsafe_allow_html=True)
+    # --- MongoDB connection ---
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
         db_name = "sal-lnkd"
@@ -1338,21 +1339,18 @@ def render_linkedin_followers_analytics():
         return
 
     df = pd.DataFrame(data)
-    # Ensure required columns exist
     required_cols = ["Date", "Followers total", "Total followers (Date-wise)"]
     for colname in required_cols:
         if colname not in df.columns:
             st.error(f"Required column missing: '{colname}'")
             return
 
-    # Convert Date to pandas datetime, create Month period and MonthStr
+    # Date processing
     df["Date"] = pd.to_datetime(df["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
     df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
 
-    # Get last 12 months for dropdown
     month_options = get_last_12_month_options()
-    # Pick the latest available month in data as default
     latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
     default_index = month_options.index(latest_month) if latest_month in month_options else 0
     selected_month_str = st.selectbox("Select Month:", month_options, index=default_index)
@@ -1360,23 +1358,19 @@ def render_linkedin_followers_analytics():
     prev_period = selected_period - 1
     prev_month_str = prev_period.strftime('%B %Y')
 
-    # Followers total: show the latest available value in the DB
     followers_total = df.sort_values("Date", ascending=False)["Followers total"].iloc[0]
-
-    # Followers gained in selected month and previous month
     cur_month_rows = df[df["Month"] == selected_period]
     prev_month_rows = df[df["Month"] == prev_period]
 
     followers_gained_cur = cur_month_rows["Total followers (Date-wise)"].sum() if not cur_month_rows.empty else 0
     followers_gained_prev = prev_month_rows["Total followers (Date-wise)"].sum() if not prev_month_rows.empty else 0
 
-    # Delta calculation
     delta = followers_gained_cur - followers_gained_prev
-    delta_sign = "+" if delta > 0 else ""  # "" will show minus automatically
+    delta_sign = "+" if delta > 0 else ""  # minus shows automatically
     delta_color = "#2ecc40" if delta > 0 else "#ff4136" if delta < 0 else "#888"
     delta_text = f"{delta_sign}{delta:,}"
 
-    # Animated Circle CSS for Followers total
+    # Styling
     st.markdown("""
     <style>
     .followers-circle {
@@ -1450,13 +1444,11 @@ def render_linkedin_followers_analytics():
     </style>
     """ % delta_color, unsafe_allow_html=True)
 
-    # Render Followers total circle
     st.markdown(f"""
     <div class="followers-total-label">Followers total</div>
     <div class="followers-circle">{int(followers_total):,}</div>
     """, unsafe_allow_html=True)
 
-    # Render followers gained in selected month (sum), delta vs previous month
     st.markdown(f"""
     <div class="followers-gained-row">
         <div class="followers-gained-label">
@@ -1473,7 +1465,7 @@ def render_linkedin_followers_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-# Call the new function in your main code where appropriate
+# --- Function call (replace previous call) ---
 render_linkedin_followers_analytics()
 
 # ------------------------------
