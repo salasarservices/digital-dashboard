@@ -1390,10 +1390,11 @@ def render_linkedin_analytics():
     followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
 
     # --------------- Visitors Data Prep -----------------
-    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
+    # Show total unique visitors for selected month only (not all time)
     visitors_month_rows = df[df["Month"] == selected_period]
     visitors_prev_rows = df[df["Month"] == prev_period]
-    visitors_gained_cur = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
+    total_unique_visitors = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
+    visitors_gained_cur = total_unique_visitors
     visitors_gained_prev = int(visitors_prev_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_prev_rows.empty else 0
     visitors_delta = visitors_gained_cur - visitors_gained_prev
     visitors_delta_sign = "+" if visitors_delta > 0 else ""
@@ -1564,7 +1565,9 @@ def render_linkedin_analytics():
     </div>
     """, unsafe_allow_html=True)
 
+# =========================
 # MAIN: Render Analytics Section
+# =========================
 render_linkedin_analytics()
 
 # =========================
