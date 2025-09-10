@@ -1342,7 +1342,7 @@ def load_linkedin_analytics_doc():
         return None
 
 # =========================
-# Main analytics section - displays circles in two rows (2 circles per row)
+# Main analytics section - displays circles in two rows (2 circles per row, 1 row with engagement rate)
 # =========================
 def render_linkedin_analytics():
     doc = load_linkedin_analytics_doc()
@@ -1357,13 +1357,14 @@ def render_linkedin_analytics():
         "date": "Date",
         "total_followers": "Total followers (Date-wise)",
         "total_unique_visitors": "Total Unique Visitors (Date-wise)",
-        "impressions": "Impressions (Date-wise)",
+        "total_impressions": "Total Impressions (Date-wise)",  # Corrected to match your MongoDB field
         "clicks": "Clicks (Date-wise)",
         "engagement_rate": "Engagement Rate (Date-wise)"
     })
 
     # Date processing & grouping
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df = df.dropna(subset=["Date"])
     df["Month"] = df["Date"].dt.to_period("M")
     df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
 
@@ -1386,7 +1387,7 @@ def render_linkedin_analytics():
         if val < 0: return neg_color
         return "#888"
 
-    # --------------- Followers Data Prep -----------------
+    # Followers
     followers_total = int(doc.get("followers_total", 0))
     followers_month_rows = df[df["Month"] == selected_period]
     followers_prev_rows = df[df["Month"] == prev_period]
@@ -1397,7 +1398,7 @@ def render_linkedin_analytics():
     followers_delta_color = get_delta_color(followers_delta, "#2ecc40", "#ff4136")
     followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
 
-    # --------------- Visitors Data Prep -----------------
+    # Visitors
     total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
     visitors_month_rows = df[df["Month"] == selected_period]
     visitors_prev_rows = df[df["Month"] == prev_period]
@@ -1408,35 +1409,35 @@ def render_linkedin_analytics():
     visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
     visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # --------------- Impressions Data Prep -----------------
+    # Impressions (sum for selected month, delta vs. previous month)
     impressions_month_rows = df[df["Month"] == selected_period]
     impressions_prev_rows = df[df["Month"] == prev_period]
-    impressions_cur = int(impressions_month_rows["Impressions (Date-wise)"].sum()) if "Impressions (Date-wise)" in impressions_month_rows else 0
-    impressions_prev = int(impressions_prev_rows["Impressions (Date-wise)"].sum()) if "Impressions (Date-wise)" in impressions_prev_rows else 0
+    impressions_cur = int(impressions_month_rows["Total Impressions (Date-wise)"].sum()) if not impressions_month_rows.empty else 0
+    impressions_prev = int(impressions_prev_rows["Total Impressions (Date-wise)"].sum()) if not impressions_prev_rows.empty else 0
     impressions_delta = impressions_cur - impressions_prev
     impressions_delta_sign = "+" if impressions_delta > 0 else ""
     impressions_delta_color = get_delta_color(impressions_delta, "#9b59b6", "#e74c3c")
     impressions_delta_text = f"{impressions_delta_sign}{impressions_delta:,}"
 
-    # --------------- Clicks Data Prep -----------------
+    # Clicks (sum for selected month, delta vs. previous month)
     clicks_month_rows = df[df["Month"] == selected_period]
     clicks_prev_rows = df[df["Month"] == prev_period]
-    clicks_cur = int(clicks_month_rows["Clicks (Date-wise)"].sum()) if "Clicks (Date-wise)" in clicks_month_rows else 0
-    clicks_prev = int(clicks_prev_rows["Clicks (Date-wise)"].sum()) if "Clicks (Date-wise)" in clicks_prev_rows else 0
+    clicks_cur = int(clicks_month_rows["Clicks (Date-wise)"].sum()) if not clicks_month_rows.empty else 0
+    clicks_prev = int(clicks_prev_rows["Clicks (Date-wise)"].sum()) if not clicks_prev_rows.empty else 0
     clicks_delta = clicks_cur - clicks_prev
     clicks_delta_sign = "+" if clicks_delta > 0 else ""
     clicks_delta_color = get_delta_color(clicks_delta, "#16a085", "#e74c3c")
     clicks_delta_text = f"{clicks_delta_sign}{clicks_delta:,}"
 
-    # --------------- Engagement Rate Data Prep -----------------
+    # Engagement Rate (average for selected month, delta vs. previous month)
     engagement_month_rows = df[df["Month"] == selected_period]
     engagement_prev_rows = df[df["Month"] == prev_period]
-    engagement_cur = float(engagement_month_rows["Engagement Rate (Date-wise)"].mean()) if "Engagement Rate (Date-wise)" in engagement_month_rows else 0.0
-    engagement_prev = float(engagement_prev_rows["Engagement Rate (Date-wise)"].mean()) if "Engagement Rate (Date-wise)" in engagement_prev_rows else 0.0
+    engagement_cur = float(engagement_month_rows["Engagement Rate (Date-wise)"].mean()) if not engagement_month_rows.empty else 0.0
+    engagement_prev = float(engagement_prev_rows["Engagement Rate (Date-wise)"].mean()) if not engagement_prev_rows.empty else 0.0
     engagement_delta = engagement_cur - engagement_prev
     engagement_delta_sign = "+" if engagement_delta > 0 else ""
     engagement_delta_color = get_delta_color(engagement_delta, "#e67e22", "#e74c3c")
-    engagement_delta_text = f"{engagement_delta_sign}{engagement_delta:.2f}"
+    engagement_delta_text = f"{engagement_delta_sign}{engagement_delta:.4f}"
 
     # --------------- Styling for Circles and Layout -----------------
     st.markdown(f"""
@@ -1730,7 +1731,7 @@ def render_linkedin_analytics():
     </style>
     """, unsafe_allow_html=True)
 
-    # --------------- Render Circles in Two Rows (2 circles per row) -----------------
+    # --------------- Render Circles in Two Rows (2 circles per row, 1 row with engagement rate) -----------------
     st.markdown(f"""
     <div class="analytics-circles-row">
         <div class="circle-block">
@@ -1799,13 +1800,13 @@ def render_linkedin_analytics():
     <div class="analytics-circles-row" style="justify-content: center;">
         <div class="circle-block">
             <div class="engagement-label">Engagement Rate</div>
-            <div class="engagement-circle">{engagement_cur:.2f}%</div>
+            <div class="engagement-circle">{engagement_cur:.2%}</div>
             <div class="engagement-gained-row">
                 Engagement Rate in <span style="color:#e67e22;">{selected_month_str}</span>:
-                <b>{engagement_cur:.2f}%</b>
+                <b>{engagement_cur:.2%}</b>
             </div>
             <div class="engagement-delta-row">
-                <span class="engagement-delta-value">{engagement_delta_text}%</span>
+                <span class="engagement-delta-value">{engagement_delta_text}</span>
                 <span style="color:{engagement_delta_color};font-size:1.01em;">
                     {"↑" if engagement_delta > 0 else "↓" if engagement_delta < 0 else ""}
                 </span>
