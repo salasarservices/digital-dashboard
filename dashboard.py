@@ -1315,519 +1315,173 @@ else:
 # LINKEDIN ANALYTICS
 # =========================
 
-# =========================
-# Utility: Generate last 12 months for dropdown
-# =========================
-def get_last_12_month_options():
-    today = date.today().replace(day=1)
-    months = [today - relativedelta(months=i) for i in range(12)]
-    return [d.strftime('%B %Y') for d in months]
+# ---------- MONGODB CONNECTION ----------
+client = MongoClient(st.secrets["mongo"]["uri"])
+db = client["sal-lnkd"]
 
-# =========================
-# MongoDB: Load analytics document
-# =========================
-def load_linkedin_analytics_doc():
-    try:
-        mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
-        db_name = "sal-lnkd"
-        collection_name = "lnkd-analytics"
-        client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
-        db = client[db_name]
-        col = db[collection_name]
-        doc = col.find_one({})
-        client.close()
-        return doc
-    except Exception as e:
-        st.error(f"Could not connect to LinkedIn MongoDB: {e}")
-        return None
-
-# =========================
-# Main analytics section - displays circles in two rows (2 circles per row, 1 row with engagement rate)
-# =========================
-def render_linkedin_analytics():
-    doc = load_linkedin_analytics_doc()
-    if not doc or "daily_records" not in doc or not doc["daily_records"]:
-        st.info("No LinkedIn analytics data found in MongoDB.")
-        return
-
-    # Convert daily_records array to DataFrame for monthly aggregations
-    df = pd.DataFrame(doc["daily_records"])
-    rename_map = {}
-    if "date" in df.columns:
-        rename_map["date"] = "Date"
-    if "total_followers" in df.columns:
-        rename_map["total_followers"] = "Total followers (Date-wise)"
-    if "total_unique_visitors" in df.columns:
-        rename_map["total_unique_visitors"] = "Total Unique Visitors (Date-wise)"
-    df = df.rename(columns=rename_map)
-
-    # Date processing & grouping
-    if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        df = df.dropna(subset=["Date"])
-        df["Month"] = df["Date"].dt.to_period("M")
-        df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
+# --- Helper: Month Boundaries ---
+def get_month_boundaries(month_str):
+    year, month = map(int, month_str.split("-"))
+    start = datetime(year, month, 1)
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
     else:
-        st.error("No 'date' field found in daily_records.")
-        return
+        next_month = datetime(year, month + 1, 1)
+    return start, next_month
 
-    month_options = get_last_12_month_options()
-    latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
-    default_index = month_options.index(latest_month) if latest_month in month_options else 0
-
-    # --------------- UI: Main Title + Month Selector -----------------
-    st.markdown("""
-    <h2 style='text-align:center; font-size:2.2em; color:#2d448d; margin-bottom:0.7em; margin-top:0.1em;'>Linkedin Analytics</h2>
-    """, unsafe_allow_html=True)
-
-    selected_month_str = st.selectbox("Select month", month_options, index=default_index, key="analytics_month")
-    selected_period = pd.Period(datetime.strptime(selected_month_str, "%B %Y").date(), freq="M")
-    prev_period = selected_period - 1
-    prev_month_str = prev_period.strftime('%B %Y')
-
-    def get_delta_color(val, pos_color, neg_color):
-        if val > 0: return pos_color
-        if val < 0: return neg_color
-        return "#888"
-
-    # Followers
-    followers_total = int(doc.get("followers_total", 0))
-    followers_month_rows = df[df["Month"] == selected_period]
-    followers_prev_rows = df[df["Month"] == prev_period]
-    followers_gained_cur = int(followers_month_rows.get("Total followers (Date-wise)", pd.Series([0])).sum()) if "Total followers (Date-wise)" in df.columns else 0
-    followers_gained_prev = int(followers_prev_rows.get("Total followers (Date-wise)", pd.Series([0])).sum()) if "Total followers (Date-wise)" in df.columns else 0
-    followers_delta = followers_gained_cur - followers_gained_prev
-    followers_delta_sign = "+" if followers_delta > 0 else ""
-    followers_delta_color = get_delta_color(followers_delta, "#2ecc40", "#ff4136")
-    followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
-
-    # Visitors
-    total_unique_visitors = int(df.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
-    visitors_month_rows = df[df["Month"] == selected_period]
-    visitors_prev_rows = df[df["Month"] == prev_period]
-    visitors_gained_cur = int(visitors_month_rows.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
-    visitors_gained_prev = int(visitors_prev_rows.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
-    visitors_delta = visitors_gained_cur - visitors_gained_prev
-    visitors_delta_sign = "+" if visitors_delta > 0 else ""
-    visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
-    visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
-
-    # Total Impressions (sum for selected month, delta vs. previous month)
-    impressions_month_rows = df[df["Month"] == selected_period]
-    impressions_prev_rows = df[df["Month"] == prev_period]
-    if "total_impressions" in df.columns:
-        impressions_cur = int(impressions_month_rows["total_impressions"].sum())
-        impressions_prev = int(impressions_prev_rows["total_impressions"].sum())
+def get_prev_month(month_str):
+    year, month = map(int, month_str.split("-"))
+    if month == 1:
+        prev_year = year - 1
+        prev_month = 12
     else:
-        impressions_cur = impressions_prev = 0
-    impressions_delta = impressions_cur - impressions_prev
-    impressions_delta_sign = "+" if impressions_delta > 0 else ""
-    impressions_delta_color = "#2ecc40" if impressions_delta > 0 else "#ff4136" if impressions_delta < 0 else "#888"
-    impressions_arrow = "↑" if impressions_delta > 0 else ("↓" if impressions_delta < 0 else "")
-    impressions_delta_text = f"{impressions_delta_sign}{impressions_delta:,}"
+        prev_year = year
+        prev_month = month - 1
+    return f"{prev_year:04d}-{prev_month:02d}"
 
-    # Engagement Rate (mean for selected month, delta vs. previous month)
-    if "engagement_rate" in df.columns:
-        engagement_cur = engagement_month_rows["engagement_rate"].mean() if not engagement_month_rows.empty else 0.0
-        engagement_prev = engagement_prev_rows["engagement_rate"].mean() if not engagement_prev_rows.empty else 0.0
-    else:
-        engagement_cur = engagement_prev = 0.0
-    engagement_delta = engagement_cur - engagement_prev
-    engagement_delta_sign = "+" if engagement_delta > 0 else ""
-    engagement_delta_color = "#2ecc40" if engagement_delta > 0 else "#ff4136" if engagement_delta < 0 else "#888"
-    engagement_arrow = "↑" if engagement_delta > 0 else ("↓" if engagement_delta < 0 else "")
-    engagement_cur_display = f"{engagement_cur*100:.2f}%"
-    engagement_delta_display = f"{engagement_delta_sign}{engagement_delta*100:.2f}%"
+# --- 1. Animated Circles for lnkd-extras: Impressions, Clicks, Engagement Rate ---
+def get_extras_monthly_metrics(selected_month=None):
+    coll = db["lnkd-extras"]
+    # Find available months
+    months = coll.distinct("date")
+    months_fmt = sorted({d.strftime("%Y-%m") for d in months}, reverse=True)
+    if not selected_month:
+        selected_month = months_fmt[0]
+    start, end = get_month_boundaries(selected_month)
+    prev_month_str = get_prev_month(selected_month)
+    prev_start, prev_end = get_month_boundaries(prev_month_str)
+    # Aggregate metrics for selected month
+    pipeline = [
+        {"$match": {"date": {"$gte": start, "$lt": end}}},
+        {"$group": {
+            "_id": None,
+            "impressions": {"$sum": "$total_impressions"},
+            "clicks": {"$sum": "$clicks"},
+            "engagement_rate": {"$avg": "$engagement_rate"}
+        }}
+    ]
+    result = list(coll.aggregate(pipeline))
+    current = result[0] if result else {"impressions": 0, "clicks": 0, "engagement_rate": 0}
+    # Aggregate metrics for previous month
+    prev_pipeline = [
+        {"$match": {"date": {"$gte": prev_start, "$lt": prev_end}}},
+        {"$group": {
+            "_id": None,
+            "impressions": {"$sum": "$total_impressions"},
+            "clicks": {"$sum": "$clicks"},
+            "engagement_rate": {"$avg": "$engagement_rate"}
+        }}
+    ]
+    prev_result = list(coll.aggregate(prev_pipeline))
+    prev = prev_result[0] if prev_result else {"impressions": 0, "clicks": 0, "engagement_rate": 0}
+    # Deltas
+    deltas = {
+        "impressions": current["impressions"] - prev["impressions"],
+        "clicks": current["clicks"] - prev["clicks"],
+        "engagement_rate": round(current["engagement_rate"] - prev["engagement_rate"], 2)
+    }
+    return current, deltas, selected_month, months_fmt
 
-    # Clicks (sum for selected month, delta vs. previous month)
-    clicks_month_rows = df[df["Month"] == selected_period]
-    clicks_prev_rows = df[df["Month"] == prev_period]
-    clicks_cur = int(clicks_month_rows.get("clicks", pd.Series([0])).sum()) if "clicks" in df.columns else 0
-    clicks_prev = int(clicks_prev_rows.get("clicks", pd.Series([0])).sum()) if "clicks" in df.columns else 0
-    clicks_delta = clicks_cur - clicks_prev
-    clicks_delta_sign = "+" if clicks_delta > 0 else ""
-    clicks_delta_color = get_delta_color(clicks_delta, "#16a085", "#e74c3c")
-    clicks_delta_text = f"{clicks_delta_sign}{clicks_delta:,}"
+# --- 2. Animated Circles for lnkd-analytics: Followers, Unique Visitors ---
+def get_analytics_monthly_metrics(selected_month=None):
+    coll = db["lnkd-analytics"]
+    # Find available months
+    months = coll.distinct("date")
+    months_fmt = sorted({d.strftime("%Y-%m") for d in months}, reverse=True)
+    if not selected_month:
+        selected_month = months_fmt[0]
+    start, end = get_month_boundaries(selected_month)
+    prev_month_str = get_prev_month(selected_month)
+    prev_start, prev_end = get_month_boundaries(prev_month_str)
+    # Aggregate metrics for selected month
+    pipeline = [
+        {"$match": {"date": {"$gte": start, "$lt": end}}},
+        {"$group": {
+            "_id": None,
+            "followers_total": {"$max": "$followers_total"},
+            "total_followers": {"$sum": "$total_followers"},
+            "total_unique_visitors": {"$sum": "$total_unique_visitors"}
+        }}
+    ]
+    result = list(coll.aggregate(pipeline))
+    current = result[0] if result else {"followers_total": 0, "total_followers": 0, "total_unique_visitors": 0}
+    # Aggregate metrics for previous month
+    prev_pipeline = [
+        {"$match": {"date": {"$gte": prev_start, "$lt": prev_end}}},
+        {"$group": {
+            "_id": None,
+            "followers_total": {"$max": "$followers_total"},
+            "total_followers": {"$sum": "$total_followers"},
+            "total_unique_visitors": {"$sum": "$total_unique_visitors"}
+        }}
+    ]
+    prev_result = list(coll.aggregate(prev_pipeline))
+    prev = prev_result[0] if prev_result else {"followers_total": 0, "total_followers": 0, "total_unique_visitors": 0}
+    deltas = {
+        "followers_total": current["followers_total"] - prev["followers_total"],
+        "total_followers": current["total_followers"] - prev["total_followers"],
+        "total_unique_visitors": current["total_unique_visitors"] - prev["total_unique_visitors"]
+    }
+    return current, deltas, selected_month, months_fmt
 
-    # --------------- Styling for Circles and Layout -----------------
-    st.markdown(f"""
-    <style>
-    .analytics-circles-row {{
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        align-items: flex-start;
-        gap: 60px;
-        margin-top: 2.1em;
-        margin-bottom: 2.2em;
-        flex-wrap: wrap;
-    }}
-    .circle-block {{
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        min-width: 220px;
-        max-width: 260px;
-    }}
-    .followers-circle {{
-        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(63,138,224,0.18);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .followers-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 32px rgba(63,138,224,0.20);
-    }}
-    .followers-total-label {{
-        text-align: center;
-        font-weight: 600;
-        font-size: 1.12em;
-        margin-bottom: 0.28em;
-        color: #2d448d;
-    }}
-    .followers-gained-row {{
-        margin-bottom: 0.07em;
-        font-size: 1em;
-        font-weight: 500;
-        color: #2d448d;
-        text-align: center;
-    }}
-    .followers-delta-row {{
-        text-align: center;
-        font-size: 0.98em;
-        font-weight: 600;
-        margin-top: 0.14em;
-        margin-bottom: 0.1em;
-    }}
-    .followers-delta-value {{
-        color: {followers_delta_color};
-        font-size: 1.09em;
-        font-weight: 700;
-        margin-right: 4px;
-    }}
-    .followers-delta-label {{
-        color: #888;
-        font-size: 0.94em;
-        font-weight: 400;
-        margin-left: 2px;
-    }}
-
-    .visitors-circle {{
-        background: linear-gradient(135deg, #13c4a3 0%, #69f0ae 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(19,196,163,0.18);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .visitors-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 32px rgba(19,196,163,0.20);
-    }}
-    .visitors-total-label {{
-        text-align: center;
-        font-weight: 600;
-        font-size: 1.12em;
-        margin-bottom: 0.28em;
-        color: #13c4a3;
-    }}
-    .visitors-gained-row {{
-        margin-bottom: 0.07em;
-        font-size: 1em;
-        font-weight: 500;
-        color: #13c4a3;
-        text-align: center;
-    }}
-    .visitors-delta-row {{
-        text-align: center;
-        font-size: 0.98em;
-        font-weight: 600;
-        margin-top: 0.14em;
-        margin-bottom: 0.1em;
-    }}
-    .visitors-delta-value {{
-        color: {visitors_delta_color};
-        font-size: 1.09em;
-        font-weight: 700;
-        margin-right: 4px;
-    }}
-    .visitors-delta-label {{
-        color: #888;
-        font-size: 0.94em;
-        font-weight: 400;
-        margin-left: 2px;
-    }}
-
-    .impressions-circle {{
-        background: linear-gradient(135deg, #a29bfe 0%, #dfe6e9 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #6c5ce7;
-        box-shadow: 0 4px 18px rgba(162,155,254,0.14);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .impressions-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 32px rgba(162,155,254,0.18);
-    }}
-    .impressions-label {{
-        text-align: center;
-        font-weight: 600;
-        font-size: 1.12em;
-        margin-bottom: 0.28em;
-        color: #6c5ce7;
-    }}
-    .impressions-gained-row {{
-        margin-bottom: 0.07em;
-        font-size: 1em;
-        font-weight: 500;
-        color: #6c5ce7;
-        text-align: center;
-    }}
-    .impressions-delta-row {{
-        text-align: center;
-        font-size: 0.98em;
-        font-weight: 600;
-        margin-top: 0.14em;
-        margin-bottom: 0.1em;
-    }}
-    .impressions-delta-value {{
-        color: {impressions_delta_color};
-        font-size: 1.09em;
-        font-weight: 700;
-        margin-right: 4px;
-    }}
-    .impressions-delta-label {{
-        color: #888;
-        font-size: 0.94em;
-        font-weight: 400;
-        margin-left: 2px;
-    }}
-
-    .clicks-circle {{
-        background: linear-gradient(135deg, #00b894 0%, #55efc4 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #00b894;
-        box-shadow: 0 4px 18px rgba(0,184,148,0.14);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .clicks-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 32px rgba(0,184,148,0.18);
-    }}
-    .clicks-label {{
-        text-align: center;
-        font-weight: 600;
-        font-size: 1.12em;
-        margin-bottom: 0.28em;
-        color: #00b894;
-    }}
-    .clicks-gained-row {{
-        margin-bottom: 0.07em;
-        font-size: 1em;
-        font-weight: 500;
-        color: #00b894;
-        text-align: center;
-    }}
-    .clicks-delta-row {{
-        text-align: center;
-        font-size: 0.98em;
-        font-weight: 600;
-        margin-top: 0.14em;
-        margin-bottom: 0.1em;
-    }}
-    .clicks-delta-value {{
-        color: {clicks_delta_color};
-        font-size: 1.09em;
-        font-weight: 700;
-        margin-right: 4px;
-    }}
-    .clicks-delta-label {{
-        color: #888;
-        font-size: 0.94em;
-        font-weight: 400;
-        margin-left: 2px;
-    }}
-
-    .engagement-circle {{
-        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #e67e22;
-        box-shadow: 0 4px 18px rgba(255,234,167,0.13);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .engagement-circle:hover {{
-        transform: scale(1.13);
-        box-shadow: 0 8px 32px rgba(255,234,167,0.18);
-    }}
-    .engagement-label {{
-        text-align: center;
-        font-weight: 600;
-        font-size: 1.12em;
-        margin-bottom: 0.28em;
-        color: #e67e22;
-    }}
-    .engagement-gained-row {{
-        margin-bottom: 0.07em;
-        font-size: 1em;
-        font-weight: 500;
-        color: #e67e22;
-        text-align: center;
-    }}
-    .engagement-delta-row {{
-        text-align: center;
-        font-size: 0.98em;
-        font-weight: 600;
-        margin-top: 0.14em;
-        margin-bottom: 0.1em;
-    }}
-    .engagement-delta-value {{
-        color: {engagement_delta_color};
-        font-size: 1.09em;
-        font-weight: 700;
-        margin-right: 4px;
-    }}
-    .engagement-delta-label {{
-        color: #888;
-        font-size: 0.94em;
-        font-weight: 400;
-        margin-left: 2px;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --------------- Render Circles in Two Rows (2 circles per row, 1 row with engagement rate) -----------------
-    st.markdown(f"""
-    <div class="analytics-circles-row">
-        <div class="circle-block">
-            <div class="followers-total-label">Total Followers</div>
-            <div class="followers-circle">{followers_total:,}</div>
-            <div class="followers-gained-row">
-                Followers gained in <span style="color:#2d448d;">{selected_month_str}</span>:
-                <b>{followers_gained_cur:,}</b>
-            </div>
-            <div class="followers-delta-row">
-                <span class="followers-delta-value">{followers_delta_text}</span>
-                <span style="color:{followers_delta_color};font-size:1.01em;">
-                    {"↑" if followers_delta > 0 else "↓" if followers_delta < 0 else ""}
-                </span>
-                <span class="followers-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
+# --- Animated Circle Component ---
+def animated_circle(label, value, delta, icon, color, suffix="", delta_suffix=""):
+    pct_color = "#2ecc40" if delta >= 0 else "#ff4136"
+    pct_icon = "↑" if delta >= 0 else "↓"
+    st.markdown(
+        f"""<div style='text-align:center; font-weight:500; font-size:22px; margin-bottom:0.2em'>
+                {icon} {label}
+            </div>""",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        f"""
+        <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:70px;'>
+          <div class='animated-circle' style='background:{color}; width:80px; height:80px; font-size:1.2em; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; box-shadow: 0 0 12px #ccc;'>
+            <span class='animated-circle-value'>{value:,}{suffix}</span>
+          </div>
         </div>
-        <div class="circle-block">
-            <div class="visitors-total-label">Total Unique Visitors</div>
-            <div class="visitors-circle">{total_unique_visitors:,}</div>
-            <div class="visitors-gained-row">
-                Unique Visitors gained in <span style="color:#13c4a3;">{selected_month_str}</span>:
-                <b>{visitors_gained_cur:,}</b>
-            </div>
-            <div class="visitors-delta-row">
-                <span class="visitors-delta-value">{visitors_delta_text}</span>
-                <span style="color:{visitors_delta_color};font-size:1.01em;">
-                    {"↑" if visitors_delta > 0 else "↓" if visitors_delta < 0 else ""}
-                </span>
-                <span class="visitors-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
-        </div>
-    </div>
-    <div class="analytics-circles-row">
-        <div class="circle-block">
-            <div class="impressions-label">Total Impressions</div>
-            <div class="impressions-circle">{impressions_cur:,}</div>
-            <div class="impressions-gained-row">
-                Impressions in <span style="color:#6c5ce7;">{selected_month_str}</span>: <b>{impressions_cur:,}</b>
-            </div>
-            <div class="impressions-delta-row">
-                <span class="impressions-delta-value">{impressions_delta_text}</span>
-                <span style="color:{impressions_delta_color};font-size:1.01em;">
-                    {impressions_arrow}
-                </span>
-                <span class="impressions-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
-        </div>
-        <div class="circle-block">
-            <div class="clicks-label">Clicks</div>
-            <div class="clicks-circle">{clicks_cur:,}</div>
-            <div class="clicks-gained-row">
-                Clicks in <span style="color:#00b894;">{selected_month_str}</span>:
-                <b>{clicks_cur:,}</b>
-            </div>
-            <div class="clicks-delta-row">
-                <span class="clicks-delta-value">{clicks_delta_text}</span>
-                <span style="color:{clicks_delta_color};font-size:1.01em;">
-                    {"↑" if clicks_delta > 0 else "↓" if clicks_delta < 0 else ""}
-                </span>
-                <span class="clicks-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
-        </div>
-    </div>
-    <div class="analytics-circles-row" style="justify-content: center;">
-        <div class="circle-block">
-            <div class="engagement-label">Engagement Rate</div>
-            <div class="engagement-circle">{engagement_cur_display}</div>
-            <div class="engagement-gained-row">
-                Engagement Rate in <span style="color:#e67e22;">{selected_month_str}</span>: <b>{engagement_cur_display}</b>
-            </div>
-            <div class="engagement-delta-row">
-                <span class="engagement-delta-value">{engagement_delta_display}</span>
-                <span style="color:{engagement_delta_color};font-size:1.01em;">
-                    {engagement_arrow}
-                </span>
-                <span class="engagement-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        f"<div style='text-align:center; font-size:15px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon} {abs(delta):,}{delta_suffix} (vs. prev month)</div>",
+        unsafe_allow_html=True
+    )
 
-# =========================
-# MAIN: Render Analytics Section
-# =========================
-render_linkedin_analytics()
+# --- 1. lnkd-extras Section ---
+def render_extras_section():
+    current, deltas, selected_month, months_fmt = get_extras_monthly_metrics()
+    selected_month = st.selectbox("Select Month for Extras", months_fmt, index=months_fmt.index(selected_month), key="extras_month")
+    current, deltas, selected_month, _ = get_extras_monthly_metrics(selected_month)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        animated_circle("Impressions", current["impressions"], deltas["impressions"], "👁️", "#e67e22")
+    with col2:
+        animated_circle("Clicks", current["clicks"], deltas["clicks"], "🖱️", "#9b59b6")
+    with col3:
+        animated_circle("Engagement Rate", round(current["engagement_rate"], 2), deltas["engagement_rate"], "✨", "#16a085", suffix="%", delta_suffix="%")
+    st.caption(f"Data for {selected_month}")
+
+# --- 2. lnkd-analytics Section ---
+def render_analytics_section():
+    current, deltas, selected_month, months_fmt = get_analytics_monthly_metrics()
+    selected_month = st.selectbox("Select Month for Analytics", months_fmt, index=months_fmt.index(selected_month), key="analytics_month")
+    current, deltas, selected_month, _ = get_analytics_monthly_metrics(selected_month)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        animated_circle("Followers Total", current["followers_total"], deltas["followers_total"], "👥", "#3498db")
+    with col2:
+        animated_circle("Total Followers", current["total_followers"], delas["total_followers"], "➕", "#8c7ae6")
+    with col3:
+        animated_circle("Unique Visitors", current["total_unique_visitors"], deltas["total_unique_visitors"], "🧑‍💻", "#fbc531")
+    st.caption(f"Data for {selected_month}")
+
+# --- Render Both Sections ---
+st.markdown("## LinkedIn Monthly Metrics")
+render_extras_section()
+st.markdown("---")
+render_analytics_section()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
