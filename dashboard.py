@@ -1352,8 +1352,6 @@ def render_linkedin_analytics():
 
     # Convert daily_records array to DataFrame for monthly aggregations
     df = pd.DataFrame(doc["daily_records"])
-    # Standardize column names for processing
-    # Only rename columns that exist in the DataFrame
     rename_map = {}
     if "date" in df.columns:
         rename_map["date"] = "Date"
@@ -1414,15 +1412,32 @@ def render_linkedin_analytics():
     visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
     visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # Impressions (sum for selected month, delta vs. previous month)
+    # Total Impressions (sum for selected month, delta vs. previous month)
     impressions_month_rows = df[df["Month"] == selected_period]
     impressions_prev_rows = df[df["Month"] == prev_period]
-    impressions_cur = int(impressions_month_rows.get("total_impressions", pd.Series([0])).sum()) if "total_impressions" in df.columns else 0
-    impressions_prev = int(impressions_prev_rows.get("total_impressions", pd.Series([0])).sum()) if "total_impressions" in df.columns else 0
+    if "total_impressions" in df.columns:
+        impressions_cur = int(impressions_month_rows["total_impressions"].sum())
+        impressions_prev = int(impressions_prev_rows["total_impressions"].sum())
+    else:
+        impressions_cur = impressions_prev = 0
     impressions_delta = impressions_cur - impressions_prev
     impressions_delta_sign = "+" if impressions_delta > 0 else ""
-    impressions_delta_color = get_delta_color(impressions_delta, "#9b59b6", "#e74c3c")
+    impressions_delta_color = "#2ecc40" if impressions_delta > 0 else "#ff4136" if impressions_delta < 0 else "#888"
+    impressions_arrow = "↑" if impressions_delta > 0 else ("↓" if impressions_delta < 0 else "")
     impressions_delta_text = f"{impressions_delta_sign}{impressions_delta:,}"
+
+    # Engagement Rate (mean for selected month, delta vs. previous month)
+    if "engagement_rate" in df.columns:
+        engagement_cur = engagement_month_rows["engagement_rate"].mean() if not engagement_month_rows.empty else 0.0
+        engagement_prev = engagement_prev_rows["engagement_rate"].mean() if not engagement_prev_rows.empty else 0.0
+    else:
+        engagement_cur = engagement_prev = 0.0
+    engagement_delta = engagement_cur - engagement_prev
+    engagement_delta_sign = "+" if engagement_delta > 0 else ""
+    engagement_delta_color = "#2ecc40" if engagement_delta > 0 else "#ff4136" if engagement_delta < 0 else "#888"
+    engagement_arrow = "↑" if engagement_delta > 0 else ("↓" if engagement_delta < 0 else "")
+    engagement_cur_display = f"{engagement_cur*100:.2f}%"
+    engagement_delta_display = f"{engagement_delta_sign}{engagement_delta*100:.2f}%"
 
     # Clicks (sum for selected month, delta vs. previous month)
     clicks_month_rows = df[df["Month"] == selected_period]
@@ -1433,20 +1448,6 @@ def render_linkedin_analytics():
     clicks_delta_sign = "+" if clicks_delta > 0 else ""
     clicks_delta_color = get_delta_color(clicks_delta, "#16a085", "#e74c3c")
     clicks_delta_text = f"{clicks_delta_sign}{clicks_delta:,}"
-
-    # Engagement Rate (average for selected month, delta vs. previous month)
-    engagement_month_rows = df[df["Month"] == selected_period]
-    engagement_prev_rows = df[df["Month"] == prev_period]
-    if "engagement_rate" in df.columns:
-        engagement_cur = float(engagement_month_rows["engagement_rate"].mean()) if not engagement_month_rows.empty else 0.0
-        engagement_prev = float(engagement_prev_rows["engagement_rate"].mean()) if not engagement_prev_rows.empty else 0.0
-    else:
-        engagement_cur = 0.0
-        engagement_prev = 0.0
-    engagement_delta = engagement_cur - engagement_prev
-    engagement_delta_sign = "+" if engagement_delta > 0 else ""
-    engagement_delta_color = get_delta_color(engagement_delta, "#e67e22", "#e74c3c")
-    engagement_delta_text = f"{engagement_delta_sign}{engagement_delta:.4f}"
 
     # --------------- Styling for Circles and Layout -----------------
     st.markdown(f"""
@@ -1779,13 +1780,12 @@ def render_linkedin_analytics():
             <div class="impressions-label">Total Impressions</div>
             <div class="impressions-circle">{impressions_cur:,}</div>
             <div class="impressions-gained-row">
-                Impressions in <span style="color:#6c5ce7;">{selected_month_str}</span>:
-                <b>{impressions_cur:,}</b>
+                Impressions in <span style="color:#6c5ce7;">{selected_month_str}</span>: <b>{impressions_cur:,}</b>
             </div>
             <div class="impressions-delta-row">
                 <span class="impressions-delta-value">{impressions_delta_text}</span>
                 <span style="color:{impressions_delta_color};font-size:1.01em;">
-                    {"↑" if impressions_delta > 0 else "↓" if impressions_delta < 0 else ""}
+                    {impressions_arrow}
                 </span>
                 <span class="impressions-delta-label">vs. previous month ({prev_month_str})</span>
             </div>
@@ -1809,15 +1809,14 @@ def render_linkedin_analytics():
     <div class="analytics-circles-row" style="justify-content: center;">
         <div class="circle-block">
             <div class="engagement-label">Engagement Rate</div>
-            <div class="engagement-circle">{engagement_cur:.2%}</div>
+            <div class="engagement-circle">{engagement_cur_display}</div>
             <div class="engagement-gained-row">
-                Engagement Rate in <span style="color:#e67e22;">{selected_month_str}</span>:
-                <b>{engagement_cur:.2%}</b>
+                Engagement Rate in <span style="color:#e67e22;">{selected_month_str}</span>: <b>{engagement_cur_display}</b>
             </div>
             <div class="engagement-delta-row">
-                <span class="engagement-delta-value">{engagement_delta_text}</span>
+                <span class="engagement-delta-value">{engagement_delta_display}</span>
                 <span style="color:{engagement_delta_color};font-size:1.01em;">
-                    {"↑" if engagement_delta > 0 else "↓" if engagement_delta < 0 else ""}
+                    {engagement_arrow}
                 </span>
                 <span class="engagement-delta-label">vs. previous month ({prev_month_str})</span>
             </div>
