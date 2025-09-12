@@ -1314,17 +1314,11 @@ else:
 # =========================
 # LINKEDIN ANALYTICS
 # =========================
-# =========================
-# Utility: Generate last 12 months for dropdown
-# =========================
 def get_last_12_month_options():
     today = date.today().replace(day=1)
     months = [today - relativedelta(months=i) for i in range(12)]
     return [d.strftime('%B %Y') for d in months]
 
-# =========================
-# MongoDB: Load analytics documents (with correct handling of daily_records arrays)
-# =========================
 def load_linkedin_analytics_df():
     try:
         mongo_uri_linkedin = st.secrets["mongo_uri_linkedin"]
@@ -1351,20 +1345,14 @@ def load_linkedin_analytics_df():
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
         return pd.DataFrame(), pd.DataFrame(), 0
 
-# =========================
-# Main analytics section - displays circles in rows
-# =========================
 def render_linkedin_analytics():
     df_analytics, df_extras, followers_total = load_linkedin_analytics_df()
     if df_analytics.empty and df_extras.empty:
         st.info("No LinkedIn analytics data found in MongoDB.")
         return
 
-    # =========================
-    # Analytics Collection: followers & visitors
-    # =========================
+    # lnkd-analytics
     if not df_analytics.empty:
-        # Rename columns for consistency
         rename_map = {}
         if "date" in df_analytics.columns:
             rename_map["date"] = "Date"
@@ -1373,8 +1361,6 @@ def render_linkedin_analytics():
         if "total_unique_visitors" in df_analytics.columns:
             rename_map["total_unique_visitors"] = "Total Unique Visitors (Date-wise)"
         df_analytics = df_analytics.rename(columns=rename_map)
-
-        # Date processing & grouping
         if "Date" in df_analytics.columns:
             df_analytics["Date"] = pd.to_datetime(df_analytics["Date"], errors="coerce")
             df_analytics = df_analytics.dropna(subset=["Date"])
@@ -1387,11 +1373,8 @@ def render_linkedin_analytics():
         st.error("No records found in lnkd-analytics collection.")
         return
 
-    # =========================
-    # Extras Collection: impressions, clicks, engagement_rate
-    # =========================
+    # lnkd-extras
     if not df_extras.empty:
-        # Date processing & grouping
         if "date" in df_extras.columns:
             df_extras["Date"] = pd.to_datetime(df_extras["date"], errors="coerce")
             df_extras = df_extras.dropna(subset=["Date"])
@@ -1404,9 +1387,6 @@ def render_linkedin_analytics():
         st.error("No records found in lnkd-extras collection.")
         return
 
-    # =========================
-    # Month Options (union of both collections)
-    # =========================
     months_analytics = set(df_analytics.get("MonthStr", pd.Series([])))
     months_extras = set(df_extras.get("MonthStr", pd.Series([])))
     month_options = sorted(
@@ -1483,7 +1463,7 @@ def render_linkedin_analytics():
     visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
     visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # --------------- Styling for Circles and Layout -----------------
+    # --------------- Styling for Circles and Layout (no line-breaks, zoom-on-hover) -----------------
     st.markdown(f"""
     <style>
     .analytics-circles-row {{
@@ -1503,8 +1483,7 @@ def render_linkedin_analytics():
         min-width: 220px;
         max-width: 260px;
     }}
-    .impressions-circle {{
-        background: linear-gradient(135deg, #a29bfe 0%, #dfe6e9 100%);
+    .impressions-circle, .clicks-circle, .engagement-circle, .followers-circle, .visitors-circle {{
         border-radius: 50%;
         width: 140px;
         height: 140px;
@@ -1519,71 +1498,15 @@ def render_linkedin_analytics():
         cursor:pointer;
         margin-bottom: 0.7em;
     }}
-    .clicks-circle {{
-        background: linear-gradient(135deg, #00b894 0%, #55efc4 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(0,184,148,0.14);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
+    .impressions-circle {{ background: linear-gradient(135deg, #a29bfe 0%, #dfe6e9 100%); }}
+    .clicks-circle {{ background: linear-gradient(135deg, #00b894 0%, #55efc4 100%); }}
+    .engagement-circle {{ background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); color: #fff; }}
+    .followers-circle {{ background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%); }}
+    .visitors-circle {{ background: linear-gradient(135deg, #13c4a3 0%, #69f0ae 100%); }}
+    .impressions-circle:hover, .clicks-circle:hover, .engagement-circle:hover, .followers-circle:hover, .visitors-circle:hover {{
+        transform: scale(1.13);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.14);
     }}
-    .engagement-circle {{
-        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(255,234,167,0.13);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .followers-circle {{
-        background: linear-gradient(135deg, #3f8ae0 0%, #6cd4ff 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(63,138,224,0.18);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    .visitors-circle {{
-        background: linear-gradient(135deg, #13c4a3 0%, #69f0ae 100%);
-        border-radius: 50%;
-        width: 140px;
-        height: 140px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.7em;
-        font-weight: bold;
-        color: #fff;
-        box-shadow: 0 4px 18px rgba(19,196,163,0.18);
-        transition: transform 0.17s cubic-bezier(.4,2,.55,.44);
-        cursor:pointer;
-        margin-bottom: 0.7em;
-    }}
-    /* Label styling (no line breaks, colored) */
     .circle-inline-label {{
         text-align: center;
         font-weight: 600;
@@ -1591,6 +1514,7 @@ def render_linkedin_analytics():
         margin-bottom: 0.28em;
         color: #2d448d;
         display: inline-block;
+        white-space: nowrap;
     }}
     .circle-delta-row {{
         text-align: center;
@@ -1598,6 +1522,7 @@ def render_linkedin_analytics():
         font-weight: 600;
         margin-top: 0.14em;
         margin-bottom: 0.1em;
+        white-space: nowrap;
     }}
     .circle-delta-value {{
         font-size: 1.09em;
@@ -1690,9 +1615,6 @@ def render_linkedin_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-# =========================
-# MAIN: Render Analytics Section
-# =========================
 render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
