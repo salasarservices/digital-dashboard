@@ -1314,7 +1314,6 @@ else:
 # =========================
 # LINKEDIN ANALYTICS
 # =========================
-
 # =========================
 # Utility: Generate last 12 months for dropdown
 # =========================
@@ -1324,7 +1323,7 @@ def get_last_12_month_options():
     return [d.strftime('%B %Y') for d in months]
 
 # =========================
-# MongoDB: Load analytics documents
+# MongoDB: Load analytics documents (with correct handling of daily_records arrays)
 # =========================
 def load_linkedin_analytics_df():
     try:
@@ -1333,14 +1332,19 @@ def load_linkedin_analytics_df():
         client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         db = client[db_name]
         # lnkd-analytics
-        col_analytics = db["lnkd-analytics"]
-        doc_analytics = col_analytics.find_one({})
-        df_analytics = pd.DataFrame(doc_analytics["daily_records"]) if doc_analytics and "daily_records" in doc_analytics else pd.DataFrame()
-        followers_total = int(doc_analytics.get("followers_total", 0)) if doc_analytics else 0
+        doc_analytics = db["lnkd-analytics"].find_one({})
+        if doc_analytics and "daily_records" in doc_analytics:
+            df_analytics = pd.DataFrame(doc_analytics["daily_records"])
+            followers_total = int(doc_analytics.get("followers_total", 0))
+        else:
+            df_analytics = pd.DataFrame()
+            followers_total = 0
         # lnkd-extras
-        col_extras = db["lnkd-extras"]
-        extras_docs = list(col_extras.find({}))
-        df_extras = pd.DataFrame(extras_docs) if extras_docs else pd.DataFrame()
+        doc_extras = db["lnkd-extras"].find_one({})
+        if doc_extras and "daily_records" in doc_extras:
+            df_extras = pd.DataFrame(doc_extras["daily_records"])
+        else:
+            df_extras = pd.DataFrame()
         client.close()
         return df_analytics, df_extras, followers_total
     except Exception as e:
@@ -1377,7 +1381,7 @@ def render_linkedin_analytics():
             df_analytics["Month"] = df_analytics["Date"].dt.to_period("M")
             df_analytics["MonthStr"] = df_analytics["Date"].dt.strftime('%B %Y')
         else:
-            st.error("No 'date' field found in lnkd-analytics collection.")
+            st.error("No 'date' field found in daily_records for lnkd-analytics collection.")
             return
     else:
         st.error("No records found in lnkd-analytics collection.")
@@ -1394,7 +1398,7 @@ def render_linkedin_analytics():
             df_extras["Month"] = df_extras["Date"].dt.to_period("M")
             df_extras["MonthStr"] = df_extras["Date"].dt.strftime('%B %Y')
         else:
-            st.error("No 'date' field found in lnkd-extras collection.")
+            st.error("No 'date' field found in daily_records for lnkd-extras collection.")
             return
     else:
         st.error("No records found in lnkd-extras collection.")
@@ -1403,10 +1407,10 @@ def render_linkedin_analytics():
     # =========================
     # Month Options (union of both collections)
     # =========================
+    months_analytics = set(df_analytics.get("MonthStr", pd.Series([])))
+    months_extras = set(df_extras.get("MonthStr", pd.Series([])))
     month_options = sorted(
-        set(get_last_12_month_options()) |
-        set(df_analytics.get("MonthStr", pd.Series([]))) |
-        set(df_extras.get("MonthStr", pd.Series([]))),
+        set(get_last_12_month_options()) | months_analytics | months_extras,
         key=lambda d: datetime.strptime(d, "%B %Y"),
         reverse=True
     )
