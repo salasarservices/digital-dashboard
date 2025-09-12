@@ -1352,21 +1352,26 @@ def render_linkedin_analytics():
 
     # Convert daily_records array to DataFrame for monthly aggregations
     df = pd.DataFrame(doc["daily_records"])
-    # Standardize column names for processing (no renaming for impressions/clicks/engagement_rate)
-    df = df.rename(columns={
-        "date": "Date",
-        "total_followers": "Total followers (Date-wise)",
-        "total_unique_visitors": "Total Unique Visitors (Date-wise)"
-        # "total_impressions" remains as is
-        # "clicks" remains as is
-        # "engagement_rate" remains as is
-    })
+    # Standardize column names for processing
+    # Only rename columns that exist in the DataFrame
+    rename_map = {}
+    if "date" in df.columns:
+        rename_map["date"] = "Date"
+    if "total_followers" in df.columns:
+        rename_map["total_followers"] = "Total followers (Date-wise)"
+    if "total_unique_visitors" in df.columns:
+        rename_map["total_unique_visitors"] = "Total Unique Visitors (Date-wise)"
+    df = df.rename(columns=rename_map)
 
     # Date processing & grouping
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    df = df.dropna(subset=["Date"])
-    df["Month"] = df["Date"].dt.to_period("M")
-    df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df = df.dropna(subset=["Date"])
+        df["Month"] = df["Date"].dt.to_period("M")
+        df["MonthStr"] = df["Date"].dt.strftime('%B %Y')
+    else:
+        st.error("No 'date' field found in daily_records.")
+        return
 
     month_options = get_last_12_month_options()
     latest_month = df.sort_values("Date", ascending=False)["MonthStr"].iloc[0]
@@ -1391,19 +1396,19 @@ def render_linkedin_analytics():
     followers_total = int(doc.get("followers_total", 0))
     followers_month_rows = df[df["Month"] == selected_period]
     followers_prev_rows = df[df["Month"] == prev_period]
-    followers_gained_cur = int(followers_month_rows["Total followers (Date-wise)"].sum()) if not followers_month_rows.empty else 0
-    followers_gained_prev = int(followers_prev_rows["Total followers (Date-wise)"].sum()) if not followers_prev_rows.empty else 0
+    followers_gained_cur = int(followers_month_rows.get("Total followers (Date-wise)", pd.Series([0])).sum()) if "Total followers (Date-wise)" in df.columns else 0
+    followers_gained_prev = int(followers_prev_rows.get("Total followers (Date-wise)", pd.Series([0])).sum()) if "Total followers (Date-wise)" in df.columns else 0
     followers_delta = followers_gained_cur - followers_gained_prev
     followers_delta_sign = "+" if followers_delta > 0 else ""
     followers_delta_color = get_delta_color(followers_delta, "#2ecc40", "#ff4136")
     followers_delta_text = f"{followers_delta_sign}{followers_delta:,}"
 
     # Visitors
-    total_unique_visitors = int(df["Total Unique Visitors (Date-wise)"].sum())
+    total_unique_visitors = int(df.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
     visitors_month_rows = df[df["Month"] == selected_period]
     visitors_prev_rows = df[df["Month"] == prev_period]
-    visitors_gained_cur = int(visitors_month_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_month_rows.empty else 0
-    visitors_gained_prev = int(visitors_prev_rows["Total Unique Visitors (Date-wise)"].sum()) if not visitors_prev_rows.empty else 0
+    visitors_gained_cur = int(visitors_month_rows.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
+    visitors_gained_prev = int(visitors_prev_rows.get("Total Unique Visitors (Date-wise)", pd.Series([0])).sum()) if "Total Unique Visitors (Date-wise)" in df.columns else 0
     visitors_delta = visitors_gained_cur - visitors_gained_prev
     visitors_delta_sign = "+" if visitors_delta > 0 else ""
     visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
@@ -1412,8 +1417,8 @@ def render_linkedin_analytics():
     # Impressions (sum for selected month, delta vs. previous month)
     impressions_month_rows = df[df["Month"] == selected_period]
     impressions_prev_rows = df[df["Month"] == prev_period]
-    impressions_cur = int(impressions_month_rows["total_impressions"].sum()) if "total_impressions" in impressions_month_rows else 0
-    impressions_prev = int(impressions_prev_rows["total_impressions"].sum()) if "total_impressions" in impressions_prev_rows else 0
+    impressions_cur = int(impressions_month_rows.get("total_impressions", pd.Series([0])).sum()) if "total_impressions" in df.columns else 0
+    impressions_prev = int(impressions_prev_rows.get("total_impressions", pd.Series([0])).sum()) if "total_impressions" in df.columns else 0
     impressions_delta = impressions_cur - impressions_prev
     impressions_delta_sign = "+" if impressions_delta > 0 else ""
     impressions_delta_color = get_delta_color(impressions_delta, "#9b59b6", "#e74c3c")
@@ -1422,8 +1427,8 @@ def render_linkedin_analytics():
     # Clicks (sum for selected month, delta vs. previous month)
     clicks_month_rows = df[df["Month"] == selected_period]
     clicks_prev_rows = df[df["Month"] == prev_period]
-    clicks_cur = int(clicks_month_rows["clicks"].sum()) if "clicks" in clicks_month_rows else 0
-    clicks_prev = int(clicks_prev_rows["clicks"].sum()) if "clicks" in clicks_prev_rows else 0
+    clicks_cur = int(clicks_month_rows.get("clicks", pd.Series([0])).sum()) if "clicks" in df.columns else 0
+    clicks_prev = int(clicks_prev_rows.get("clicks", pd.Series([0])).sum()) if "clicks" in df.columns else 0
     clicks_delta = clicks_cur - clicks_prev
     clicks_delta_sign = "+" if clicks_delta > 0 else ""
     clicks_delta_color = get_delta_color(clicks_delta, "#16a085", "#e74c3c")
@@ -1432,8 +1437,12 @@ def render_linkedin_analytics():
     # Engagement Rate (average for selected month, delta vs. previous month)
     engagement_month_rows = df[df["Month"] == selected_period]
     engagement_prev_rows = df[df["Month"] == prev_period]
-    engagement_cur = float(engagement_month_rows["engagement_rate"].mean()) if not engagement_month_rows.empty else 0.0
-    engagement_prev = float(engagement_prev_rows["engagement_rate"].mean()) if not engagement_prev_rows.empty else 0.0
+    if "engagement_rate" in df.columns:
+        engagement_cur = float(engagement_month_rows["engagement_rate"].mean()) if not engagement_month_rows.empty else 0.0
+        engagement_prev = float(engagement_prev_rows["engagement_rate"].mean()) if not engagement_prev_rows.empty else 0.0
+    else:
+        engagement_cur = 0.0
+        engagement_prev = 0.0
     engagement_delta = engagement_cur - engagement_prev
     engagement_delta_sign = "+" if engagement_delta > 0 else ""
     engagement_delta_color = get_delta_color(engagement_delta, "#e67e22", "#e74c3c")
