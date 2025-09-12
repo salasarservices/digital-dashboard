@@ -1325,7 +1325,6 @@ def load_linkedin_analytics_df():
         db_name = "sal-lnkd"
         client = MongoClient(mongo_uri_linkedin, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
         db = client[db_name]
-        # lnkd-analytics
         doc_analytics = db["lnkd-analytics"].find_one({})
         if doc_analytics and "daily_records" in doc_analytics:
             df_analytics = pd.DataFrame(doc_analytics["daily_records"])
@@ -1333,7 +1332,6 @@ def load_linkedin_analytics_df():
         else:
             df_analytics = pd.DataFrame()
             followers_total = 0
-        # lnkd-extras
         doc_extras = db["lnkd-extras"].find_one({})
         if doc_extras and "daily_records" in doc_extras:
             df_extras = pd.DataFrame(doc_extras["daily_records"])
@@ -1463,7 +1461,7 @@ def render_linkedin_analytics():
     visitors_delta_color = get_delta_color(visitors_delta, "#13c4a3", "#ff4136")
     visitors_delta_text = f"{visitors_delta_sign}{visitors_delta:,}"
 
-    # --------------- Styling for Circles and Layout (no line-breaks, zoom-on-hover) -----------------
+    # --------------- Styling for Circles and Layout (no line-breaks, zoom-on-hover, extra space between texts) -----------------
     st.markdown(f"""
     <style>
     .analytics-circles-row {{
@@ -1535,6 +1533,14 @@ def render_linkedin_analytics():
         font-weight: 400;
         margin-left: 2px;
     }}
+    /* Extra space between text blocks for row 2 below circles */
+    .analytics-circles-row.row2 .two-labels-inline {{
+        display: flex;
+        justify-content: center;
+        gap: 60px;
+        margin-bottom: 0.2em;
+        margin-top: 0.1em;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1583,26 +1589,34 @@ def render_linkedin_analytics():
     </div>
     """, unsafe_allow_html=True)
 
-    # ----------- ROW 2: Total Followers, Total Unique Visitors -----------
+    # ----------- ROW 2: Total Followers, Total Unique Visitors with space between text blocks -----------
     st.markdown(f"""
-    <div class="analytics-circles-row">
+    <div class="analytics-circles-row row2">
         <div class="circle-block">
             <div class="followers-circle">{followers_total:,}</div>
+        </div>
+        <div class="circle-block">
+            <div class="visitors-circle">{total_unique_visitors:,}</div>
+        </div>
+    </div>
+    <div class="analytics-circles-row row2">
+        <div class="two-labels-inline">
             <div class="circle-inline-label">
                 Followers gained in <span style="font-weight:700;">{selected_month_str}</span>: <b>{followers_gained_cur:,}</b>
             </div>
+            <div class="circle-inline-label">
+                Unique Visitors gained in <span style="font-weight:700;">{selected_month_str}</span>: <b>{visitors_gained_cur:,}</b>
+            </div>
+        </div>
+    </div>
+    <div class="analytics-circles-row row2">
+        <div class="two-labels-inline">
             <div class="circle-delta-row">
                 <span class="circle-delta-value" style="color:{followers_delta_color};">{followers_delta_text}</span>
                 <span style="color:{followers_delta_color};font-size:1.01em;">
                     {"↑" if followers_delta > 0 else "↓" if followers_delta < 0 else ""}
                 </span>
                 <span class="circle-delta-label">vs. previous month ({prev_month_str})</span>
-            </div>
-        </div>
-        <div class="circle-block">
-            <div class="visitors-circle">{total_unique_visitors:,}</div>
-            <div class="circle-inline-label">
-                Unique Visitors gained in <span style="font-weight:700;">{selected_month_str}</span>: <b>{visitors_gained_cur:,}</b>
             </div>
             <div class="circle-delta-row">
                 <span class="circle-delta-value" style="color:{visitors_delta_color};">{visitors_delta_text}</span>
