@@ -1633,15 +1633,10 @@ render_linkedin_analytics()
 # =========================
 # FACEBOOK ANALYTICS
 # =========================
-
-# =========================
-# FACEBOOK ANALYTICS
-# =========================
 PAGE_ID = st.secrets["facebook"]["page_id"]
 ACCESS_TOKEN = st.secrets["facebook"]["access_token"]
 
 def get_total_metric_value(metric, since, until):
-    """Get the sum value of a metric for a date range (for monthly metrics)."""
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/{metric}"
     params = {
         "since": since,
@@ -1654,7 +1649,6 @@ def get_total_metric_value(metric, since, until):
             "data" in resp and len(resp["data"]) > 0
             and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
         ):
-            # Sum all daily values for the period
             return sum(v["value"] for v in resp["data"][0]["values"])
         else:
             print(f"[DEBUG] No data for metric {metric} between {since} and {until}. Response: {resp}")
@@ -1664,7 +1658,6 @@ def get_total_metric_value(metric, since, until):
         return 0
 
 def get_lifetime_total_followers():
-    """Get the latest lifetime total followers."""
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/page_follows"
     params = {
         "access_token": ACCESS_TOKEN
@@ -1684,7 +1677,6 @@ def get_lifetime_total_followers():
         return 0
 
 def get_previous_lifetime_total_followers(prev_period_end):
-    """Get the lifetime followers as of previous period end date."""
     url = f"https://graph.facebook.com/v19.0/{PAGE_ID}/insights/page_follows"
     params = {
         "since": prev_period_end,
@@ -1769,7 +1761,9 @@ today = datetime.today()
 month_options = [ (today.replace(day=1) - timedelta(days=30*i)).strftime('%B %Y') for i in range(12)]
 month_options = list(dict.fromkeys(month_options))  # remove dups
 
+st.markdown('<h2 style="color:#2d448d; text-align:center; margin-top:1.2em; margin-bottom:0.5em;">Facebook Page Analytics</h2>', unsafe_allow_html=True)
 selected_month_str = st.selectbox("Select Month", month_options, index=0)
+
 selected_month_dt = datetime.strptime(selected_month_str, "%B %Y")
 cur_start = selected_month_dt.replace(day=1)
 cur_end = (cur_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
@@ -1781,33 +1775,26 @@ cur_until = cur_end.strftime('%Y-%m-%d')
 prev_since = prev_start.strftime('%Y-%m-%d')
 prev_until = prev_end.strftime('%Y-%m-%d')
 
-# 1. Total Views (for selected month, sum of views)
 cur_views = get_total_metric_value("page_views_total", cur_since, cur_until)
 prev_views = get_total_metric_value("page_views_total", prev_since, prev_until)
 views_delta = cur_views - prev_views
 views_percent = safe_percent(prev_views, cur_views)
 views_icon, views_color = get_delta_icon_and_color(views_delta)
 
-# 2. Total Page Likes (for selected month, sum)
 cur_total_likes = get_total_metric_value("page_fans", cur_since, cur_until)
 prev_total_likes = get_total_metric_value("page_fans", prev_since, prev_until)
 likes_delta = cur_total_likes - prev_total_likes
 likes_percent = safe_percent(prev_total_likes, cur_total_likes)
 likes_icon, likes_color = get_delta_icon_and_color(likes_delta)
 
-# 3. Total Page Followers (lifetime, delta shows new/unfollow)
 lifetime_total_followers = get_lifetime_total_followers()
 prev_lifetime_total_followers = get_previous_lifetime_total_followers(prev_until)
 followers_delta = lifetime_total_followers - prev_lifetime_total_followers
 followers_icon, followers_color = get_delta_icon_and_color(followers_delta)
 
-# 4. Posts this month
 cur_posts_list = get_posts(cur_since, cur_until)
 cur_posts = len(cur_posts_list)
 
-# ------------------------
-# UI
-# ------------------------
 st.markdown("""
 <style>
 .fb-metric-row {
@@ -1879,7 +1866,6 @@ st.markdown("""
     font-weight: 400;
     margin-left: 2px;
 }
-/* Modern Table Style */
 .fb-post-table {
     border-collapse: collapse;
     width: 100%;
@@ -1913,8 +1899,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
-st.markdown('<div class="fb-section-header" style="font-size:2em; color:#2d448d; text-align:center; margin-bottom:1em;">Facebook Page Analytics</div>', unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class="fb-metric-row">
