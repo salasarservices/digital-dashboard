@@ -1014,28 +1014,7 @@ def get_leads_from_mongodb():
         st.error(f"Could not fetch leads: {e}")
         return []
 
-def lead_status_colored(status):
-    status_clean = str(status).strip()
-    colors = {
-        "Interested": "#FFD700",
-        "Not Interested": "#FB4141",
-        "Closed": "#B4E50D"
-    }
-    color = colors.get(status_clean, "#666")
-    return f"<b style='color: {color};'>{status_clean}</b>"
-
-def get_month_color(month_index):
-    palette = [
-        "#f7f1d5", "#fbe4eb", "#d3fbe4", "#e4eaff", "#ffe4f1",
-        "#e4fff6", "#f5e4ff", "#f1ffe4", "#ffe4e4", "#e4f1ff"
-    ]
-    return palette[month_index % len(palette)]
-
 def date_to_month_year_abbrev(date_val):
-    """
-    Takes a date string (e.g. '2025-07-01 00:00:00') or datetime object
-    and returns 'Mon YY' format (e.g. 'Jul 25').
-    """
     if pd.isnull(date_val):
         return ""
     if isinstance(date_val, datetime):
@@ -1048,6 +1027,23 @@ def date_to_month_year_abbrev(date_val):
     if pd.isnull(dt):
         return ""
     return dt.strftime("%b %y")  # e.g., 'Jul 25'
+
+def get_month_color(month_index):
+    palette = [
+        "#f7f1d5", "#fbe4eb", "#d3fbe4", "#e4eaff", "#ffe4f1",
+        "#e4fff6", "#f5e4ff", "#f1ffe4", "#ffe4e4", "#e4f1ff"
+    ]
+    return palette[month_index % len(palette)]
+
+def lead_status_colored(status):
+    status_clean = str(status).strip()
+    colors = {
+        "Interested": "#FFD700",
+        "Not Interested": "#FB4141",
+        "Closed": "#B4E50D"
+    }
+    color = colors.get(status_clean, "#666")
+    return f"<b style='color: {color};'>{status_clean}</b>"
 
 def format_brokerage_circle_value(val):
     if val >= 10000000:
@@ -1066,22 +1062,14 @@ st.markdown("## Leads Dashboard")
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
-
-    # --- Date conversion and formatting ---
     if "Date" in df.columns:
         df["Date"] = df["Date"].apply(date_to_month_year_abbrev)
-
-    # Use only the exact "Brokerage Received" field for calculation and display
     if "Brokerage Received" in df.columns:
-        # Convert to numeric, coerce errors (non-numeric/nan/null become np.nan)
         df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
-        # Sum ignoring nan/null
         total_brokerage = df["Brokerage Received"].dropna().sum()
     else:
         df["Brokerage Received"] = np.nan
         total_brokerage = 0.0
-
-    # Lead status counts
     if "Lead Status" in df.columns:
         df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
         interested_count = (df["Lead Status Clean"] == "Interested").sum()
@@ -1089,7 +1077,6 @@ if leads:
         closed_count = (df["Lead Status Clean"] == "Closed").sum()
     else:
         interested_count = not_interested_count = closed_count = 0
-
     total_leads = len(df)
 else:
     df = pd.DataFrame()
@@ -1119,7 +1106,7 @@ st.markdown("""
     width: 100%;
     min-width: 360px;
     background: #fff;
-    font-size: 0.90rem;
+    font-size: 0.85rem;
     border-radius: 12px;
     overflow: hidden;
 }
@@ -1127,26 +1114,26 @@ st.markdown("""
     background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
     color: #fff;
     font-weight: 600;
-    padding: 9px 18px 8px 13px;
+    padding: 7px 14px 7px 10px;
     border-bottom: 2.5px solid #e3e6eb;
     text-align: left;
     white-space: nowrap;
-    font-size: 1.02rem;
-    letter-spacing: 0.02em;
+    font-size: 0.93rem;
+    letter-spacing: 0.01em;
     position: sticky;
     top: 0;
     z-index: 2;
     box-shadow: 0 2px 6px rgba(44,62,80,0.04);
 }
 .leads-table td {
-    padding: 7px 13px 6px 13px;
+    padding: 6px 10px 5px 10px;
     border-bottom: 1px solid #f1f2f6;
     background: #fff;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 0.93rem;
+    font-size: 0.85rem;
     color: #21272b;
-    line-height: 1.35;
+    line-height: 1.27;
     letter-spacing: 0.01em;
     transition: background 0.17s;
 }
@@ -1163,7 +1150,7 @@ st.markdown("""
     border-top-right-radius: 10px;
 }
 .leads-table-wrapper::-webkit-scrollbar {
-    height: 8px;
+    height: 7px;
     background: #e6eaf2;
     border-radius: 5px;
 }
@@ -1173,8 +1160,8 @@ st.markdown("""
 }
 @media (max-width: 900px) {
     .leads-table th, .leads-table td {
-        font-size: 0.87rem;
-        padding: 6px 8px 5px 8px;
+        font-size: 0.78rem;
+        padding: 5px 6px 4px 6px;
     }
     .leads-table-wrapper {
         max-width: 99vw;
@@ -1189,24 +1176,24 @@ st.markdown("""
     flex-wrap: wrap;
 }
 .circle-animate {
-    width: 110px;
-    height: 110px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.1rem;
+    font-size: 1.7rem;
     color: #fff;
     font-weight: bold;
     box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
     animation: pop 1s ease;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     text-shadow: 0 1px 3px #2227;
     letter-spacing: 1px;
 }
 .circle-animate:hover {
-    transform: scale(1.10);
+    transform: scale(1.09);
     box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
 }
 .circle-leads    { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}
@@ -1217,15 +1204,29 @@ st.markdown("""
 .lead-label {
     text-align:center; 
     font-weight:600;
-    font-size: 1.1rem;
+    font-size: 1.01rem;
     color: #888;
     letter-spacing: 1px;
-    margin-bottom: 0.7rem;
+    margin-bottom: 0.6rem;
 }
 @keyframes pop {
     0% { transform: scale(0.5);}
     80% { transform: scale(1.1);}
     100% { transform: scale(1);}
+}
+.details-btn {
+    color: #304878;
+    background: #e3eaf6;
+    border: 1px solid #b7c6de;
+    border-radius: 7px;
+    padding: 2px 8px;
+    font-size: 0.85em;
+    margin-left: 8px;
+    cursor: pointer;
+    transition: background 0.13s;
+}
+.details-btn:hover {
+    background: #dbe6fa;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1258,7 +1259,14 @@ st.markdown(f"""
 
 st.markdown("### Leads Data")
 
+# --- Table: Show key columns, rest in details ---
+key_columns = ["Date", "Company", "Lead Contact Person", "Type of Product", "Allocated to"]
 if not df.empty:
+    # Ensure Date is in the DataFrame
+    all_columns = list(df.columns)
+    # Remove key columns from all_columns to get the rest
+    rest_columns = [col for col in all_columns if col not in key_columns and col != "Lead Status Clean"]
+    # Prepare data for table and details
     # Assign unique color to each month
     if "Date" in df.columns:
         months = df["Date"].fillna("").astype(str).unique()
@@ -1268,50 +1276,46 @@ if not df.empty:
     else:
         month_to_color = {}
 
-    # Color the Lead Status column
-    if "Lead Status" in df.columns:
-        df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
-        df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
-    if "Lead Status Clean" in df.columns:
-        df = df.drop(columns=["Lead Status Clean"])
-
-    # Drop 'Number' column if it exists
-    if "Number" in df.columns:
-        df = df.drop(columns=["Number"])
-
-    # Only show "Brokerage Received" (case-sensitive) column, formatted for display
-    if "Brokerage Received" in df.columns:
-        df["Brokerage Received"] = df["Brokerage Received"].apply(
-            lambda x: f"₹ {x:.2f}" if pd.notnull(x) else ""
-        )
-        # Place Brokerage Received just after Lead Status if present
-        lead_status_idx = df.columns.get_loc("Lead Status") if "Lead Status" in df.columns else -1
-        if lead_status_idx != -1:
-            cols = list(df.columns)
-            cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
-            df = df[cols]
-
-    def df_to_colored_html(df):
-        headers = df.columns.tolist()
-        html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
+    # Table rendering
+    def df_to_key_html(df, key_columns, rest_columns):
+        headers = key_columns + ["Details"]
+        html = '<div class="leads-table-wrapper"><table class="leads-table"><thead><tr>'
         for h in headers:
             html += f'<th>{h}</th>'
-        html += '</tr></thead>\n<tbody>'
+        html += '</tr></thead><tbody>'
         for idx, row in df.iterrows():
             html += '<tr>'
-            for i, cell in enumerate(row):
-                if headers[i] == "Date":
-                    month = str(cell).strip()
-                    bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
+            for col in key_columns:
+                if col == "Date":
+                    cell = str(row[col]) if col in row else ""
+                    bgcolor = f'background-color: {month_to_color.get(cell, "#fff")}; font-weight: bold;'
                     html += f'<td style="{bgcolor}">{cell}</td>'
                 else:
-                    html += f'<td>{cell}</td>'
+                    html += f'<td>{row[col] if col in row else ""}</td>'
+            # Add a show/hide details button (handled with Streamlit below)
+            html += f'<td><button class="details-btn" onclick="document.getElementById(\'details-{idx}\').style.display = (document.getElementById(\'details-{idx}\').style.display === \'none\' ? \'block\' : \'none\');">Show/Hide</button></td>'
             html += '</tr>'
+            # Details row (hidden by default, shown with JS)
+            html += f'<tr id="details-{idx}" style="display:none;"><td colspan="{len(headers)}"><b>Details:</b><ul style="margin:0;padding-left:18px;font-size:0.96em;">'
+            for col in rest_columns:
+                val = row[col] if col in row else ""
+                if col == "Lead Status":
+                    val = lead_status_colored(val)
+                elif col == "Brokerage Received":
+                    val = f"₹ {val:.2f}" if pd.notnull(val) else ""
+                html += f'<li><b>{col}:</b> {val}</li>'
+            html += '</ul></td></tr>'
         html += '</tbody></table></div>'
+        # Small script for toggling details (works in Streamlit)
+        html += """
+        <script>
+        // Details button logic is handled inline with onclick above
+        </script>
+        """
         return html
 
     st.write(
-        df_to_colored_html(df),
+        df_to_key_html(df, key_columns, rest_columns),
         unsafe_allow_html=True,
     )
 else:
