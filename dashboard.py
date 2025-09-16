@@ -1031,13 +1031,23 @@ def get_month_color(month_index):
     ]
     return palette[month_index % len(palette)]
 
-def yyyymmdd_to_month_year(yyyymmdd):
-    try:
-        date_str = str(yyyymmdd)[:8]
-        dt = datetime.strptime(date_str, "%Y%m%d")
-        return dt.strftime("%B %Y")
-    except Exception:
+def date_to_month_year_abbrev(date_val):
+    """
+    Takes a date string (e.g. '2025-07-01 00:00:00') or datetime object
+    and returns 'Mon YY' format (e.g. 'Jul 25').
+    """
+    if pd.isnull(date_val):
         return ""
+    if isinstance(date_val, datetime):
+        dt = date_val
+    else:
+        try:
+            dt = pd.to_datetime(str(date_val), errors="coerce")
+        except Exception:
+            return ""
+    if pd.isnull(dt):
+        return ""
+    return dt.strftime("%b %y")  # e.g., 'Jul 25'
 
 def format_brokerage_circle_value(val):
     if val >= 10000000:
@@ -1056,9 +1066,10 @@ st.markdown("## Leads Dashboard")
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
-    # Date conversion
+
+    # --- Date conversion and formatting ---
     if "Date" in df.columns:
-        df["Date"] = df["Date"].apply(yyyymmdd_to_month_year)
+        df["Date"] = df["Date"].apply(date_to_month_year_abbrev)
 
     # Use only the exact "Brokerage Received" field for calculation and display
     if "Brokerage Received" in df.columns:
@@ -1305,7 +1316,6 @@ if not df.empty:
     )
 else:
     st.info("No leads data found in MongoDB.")
-
     
 # =========================
 # SOCIAL MEDIA ANALYTICS REPORTING DASHBOARD STARTS
