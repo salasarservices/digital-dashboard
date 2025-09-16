@@ -1262,62 +1262,41 @@ st.markdown("### Leads Data")
 key_columns = ["Date", "Company", "Lead Contact Person", "Type of Product", "Allocated to"]
 
 if not df.empty:
-    # Ensure Date is in the DataFrame
-    all_columns = list(df.columns)
-    # Remove key columns from all_columns to get the rest
-    rest_columns = [col for col in all_columns if col not in key_columns and col != "Lead Status Clean"]
+    # Prepare table with only key columns
+    display_df = df[key_columns].copy()
 
-    # Assign unique color to each month
-    if "Date" in df.columns:
-        months = df["Date"].fillna("").astype(str).unique()
-        months = [m for m in months if m.strip() != ""]
-        months.sort()
-        month_to_color = {m: get_month_color(i) for i, m in enumerate(months)}
-    else:
-        month_to_color = {}
+    # Show clean, interactive table (industry standard)
+    st.markdown(
+        """
+        <style>
+        .stDataFrame { font-size: 0.90rem !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    selected_row = st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_order=key_columns
+    )
 
-    # --- Table header (HTML for style, compact font) ---
-    st.markdown("""
-    <style>
-    .my-table { font-size: 0.89rem; border-collapse: collapse; width: 100%; }
-    .my-table th, .my-table td { border: 1px solid #e5e7ee; padding: 4px 8px; text-align: left; }
-    .my-table th { background: linear-gradient(90deg, #31406e 0%, #37509b 100%); color: #fff; font-weight: 600;}
-    .my-table td { background: #fff;}
-    </style>
-    """, unsafe_allow_html=True)
+    # Row selection using a selectbox for best compatibility
+    st.write("#### View Details")
+    row_options = [f"{idx+1}: {row['Company']} / {row['Lead Contact Person']}" for idx, row in display_df.iterrows()]
+    row_choice = st.selectbox("Select a row for details:", row_options)
+    row_idx = int(row_choice.split(":")[0]) - 1
 
-    # Table Header
-    header_html = "<tr>" + "".join(f"<th>{col}</th>" for col in key_columns) + "<th>Details</th></tr>"
-    table_html = f'<table class="my-table"><thead>{header_html}</thead><tbody>'
-
-    # Table Rows
-    for idx, row in df.iterrows():
-        table_html += "<tr>"
-        for col in key_columns:
-            val = row.get(col, "")
-            style = ""
-            if col == "Date":
-                color = month_to_color.get(str(val), "#fff")
-                style = f"background-color: {color}; font-weight: bold;"
-            table_html += f'<td style="{style}">{val}</td>'
-        table_html += f'<td>details_{idx}</td></tr>'
-    table_html += "</tbody></table>"
-
-    # Render Table Skeleton
-    st.markdown(table_html, unsafe_allow_html=True)
-
-    # Render Expanders for each row (Details)
-    for idx, row in df.iterrows():
-        with st.expander(f"Details for row {idx+1}"):
-            details_dict = {col: row.get(col, "") for col in rest_columns}
-            # Format Lead Status and Brokerage if present
-            if "Lead Status" in details_dict:
-                details_dict["Lead Status"] = str(details_dict["Lead Status"])
-            if "Brokerage Received" in details_dict and pd.notnull(details_dict["Brokerage Received"]):
-                details_dict["Brokerage Received"] = f"₹ {details_dict['Brokerage Received']:.2f}"
-            else:
-                details_dict["Brokerage Received"] = ""
-            st.json(details_dict)
+    # Show details for the selected row in an expander
+    rest_columns = [c for c in df.columns if c not in key_columns and c != "Lead Status Clean"]
+    with st.expander("Show full details", expanded=True):
+        details = {col: df.iloc[row_idx][col] for col in rest_columns}
+        # Format
+        if "Lead Status" in details:
+            details["Lead Status"] = str(details["Lead Status"])
+        if "Brokerage Received" in details and pd.notnull(details["Brokerage Received"]):
+            details["Brokerage Received"] = f"₹ {details['Brokerage Received']:.2f}"
+        st.json(details)
 else:
     st.info("No leads data found in MongoDB.")
     
