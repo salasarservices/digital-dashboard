@@ -1259,14 +1259,14 @@ st.markdown(f"""
 
 st.markdown("### Leads Data")
 
-# --- Table: Show key columns, rest in details ---
 key_columns = ["Date", "Company", "Lead Contact Person", "Type of Product", "Allocated to"]
+
 if not df.empty:
     # Ensure Date is in the DataFrame
     all_columns = list(df.columns)
     # Remove key columns from all_columns to get the rest
     rest_columns = [col for col in all_columns if col not in key_columns and col != "Lead Status Clean"]
-    # Prepare data for table and details
+
     # Assign unique color to each month
     if "Date" in df.columns:
         months = df["Date"].fillna("").astype(str).unique()
@@ -1276,48 +1276,48 @@ if not df.empty:
     else:
         month_to_color = {}
 
-    # Table rendering
-    def df_to_key_html(df, key_columns, rest_columns):
-        headers = key_columns + ["Details"]
-        html = '<div class="leads-table-wrapper"><table class="leads-table"><thead><tr>'
-        for h in headers:
-            html += f'<th>{h}</th>'
-        html += '</tr></thead><tbody>'
-        for idx, row in df.iterrows():
-            html += '<tr>'
-            for col in key_columns:
-                if col == "Date":
-                    cell = str(row[col]) if col in row else ""
-                    bgcolor = f'background-color: {month_to_color.get(cell, "#fff")}; font-weight: bold;'
-                    html += f'<td style="{bgcolor}">{cell}</td>'
-                else:
-                    html += f'<td>{row[col] if col in row else ""}</td>'
-            # Add a show/hide details button (handled with Streamlit below)
-            html += f'<td><button class="details-btn" onclick="document.getElementById(\'details-{idx}\').style.display = (document.getElementById(\'details-{idx}\').style.display === \'none\' ? \'block\' : \'none\');">Show/Hide</button></td>'
-            html += '</tr>'
-            # Details row (hidden by default, shown with JS)
-            html += f'<tr id="details-{idx}" style="display:none;"><td colspan="{len(headers)}"><b>Details:</b><ul style="margin:0;padding-left:18px;font-size:0.96em;">'
-            for col in rest_columns:
-                val = row[col] if col in row else ""
-                if col == "Lead Status":
-                    val = lead_status_colored(val)
-                elif col == "Brokerage Received":
-                    val = f"₹ {val:.2f}" if pd.notnull(val) else ""
-                html += f'<li><b>{col}:</b> {val}</li>'
-            html += '</ul></td></tr>'
-        html += '</tbody></table></div>'
-        # Small script for toggling details (works in Streamlit)
-        html += """
-        <script>
-        // Details button logic is handled inline with onclick above
-        </script>
-        """
-        return html
+    # --- Table header (HTML for style, compact font) ---
+    st.markdown("""
+    <style>
+    .my-table { font-size: 0.89rem; border-collapse: collapse; width: 100%; }
+    .my-table th, .my-table td { border: 1px solid #e5e7ee; padding: 4px 8px; text-align: left; }
+    .my-table th { background: linear-gradient(90deg, #31406e 0%, #37509b 100%); color: #fff; font-weight: 600;}
+    .my-table td { background: #fff;}
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.write(
-        df_to_key_html(df, key_columns, rest_columns),
-        unsafe_allow_html=True,
-    )
+    # Table Header
+    header_html = "<tr>" + "".join(f"<th>{col}</th>" for col in key_columns) + "<th>Details</th></tr>"
+    table_html = f'<table class="my-table"><thead>{header_html}</thead><tbody>'
+
+    # Table Rows
+    for idx, row in df.iterrows():
+        table_html += "<tr>"
+        for col in key_columns:
+            val = row.get(col, "")
+            style = ""
+            if col == "Date":
+                color = month_to_color.get(str(val), "#fff")
+                style = f"background-color: {color}; font-weight: bold;"
+            table_html += f'<td style="{style}">{val}</td>'
+        table_html += f'<td>details_{idx}</td></tr>'
+    table_html += "</tbody></table>"
+
+    # Render Table Skeleton
+    st.markdown(table_html, unsafe_allow_html=True)
+
+    # Render Expanders for each row (Details)
+    for idx, row in df.iterrows():
+        with st.expander(f"Details for row {idx+1}"):
+            details_dict = {col: row.get(col, "") for col in rest_columns}
+            # Format Lead Status and Brokerage if present
+            if "Lead Status" in details_dict:
+                details_dict["Lead Status"] = str(details_dict["Lead Status"])
+            if "Brokerage Received" in details_dict and pd.notnull(details_dict["Brokerage Received"]):
+                details_dict["Brokerage Received"] = f"₹ {details_dict['Brokerage Received']:.2f}"
+            else:
+                details_dict["Brokerage Received"] = ""
+            st.json(details_dict)
 else:
     st.info("No leads data found in MongoDB.")
     
