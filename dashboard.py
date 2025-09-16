@@ -452,9 +452,9 @@ with st.sidebar:
     # --- FLUSH LEADS DATABASE FUNCTION ---
     def flush_mongo_database():
         try:
-            mongo_uri = st.secrets["mongo_uri"]
+            mongo_uri_leads = st.secrets["mongo_uri_leads"]
             db_name = "sal-leads"  # Change to your actual database name if different
-            client = MongoClient(mongo_uri)
+            client = MongoClient(mongo_uri_leads)
             db = client[db_name]
             for collection_name in db.list_collection_names():
                 db[collection_name].delete_many({})
