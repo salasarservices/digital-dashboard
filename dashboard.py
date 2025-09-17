@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import time
@@ -1099,116 +1099,88 @@ else:
 display_brokerage = format_brokerage_circle_value(total_brokerage)
 
 # ----- Professional Table Style -----
-# ----- Redesigned Table Style for Streamlit Width -----
 st.markdown("""
 <style>
 .leads-table-wrapper {
-    margin: 0 auto 10px auto;
-    width: 100vw;
-    min-width: 0;
-    max-width: 100vw;
+    margin: 0 auto 16px auto;
+    width: 98vw;
+    min-width: 360px;
+    max-width: 1100px;
     overflow-x: auto;
     font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
     background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(44, 62, 80, 0.06);
-    padding: 2px 0 8px 0;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.09);
+    padding: 8px 0 18px 0;
 }
 .leads-table {
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    min-width: 0;
+    min-width: 360px;
     background: #fff;
-    font-size: 0.82rem;
-    border-radius: 8px;
+    font-size: 0.90rem;
+    border-radius: 12px;
     overflow: hidden;
 }
 .leads-table th {
     background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
     color: #fff;
     font-weight: 600;
-    padding: 5px 6px 4px 6px;
-    border-bottom: 1.5px solid #e3e6eb;
+    padding: 9px 18px 8px 13px;
+    border-bottom: 2.5px solid #e3e6eb;
     text-align: left;
     white-space: nowrap;
-    font-size: 0.90rem;
-    letter-spacing: 0.01em;
+    font-size: 1.02rem;
+    letter-spacing: 0.02em;
     position: sticky;
     top: 0;
     z-index: 2;
+    box-shadow: 0 2px 6px rgba(44,62,80,0.04);
 }
 .leads-table td {
-    padding: 4px 6px 3px 6px;
+    padding: 7px 13px 6px 13px;
     border-bottom: 1px solid #f1f2f6;
     background: #fff;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 0.82rem;
-    color: #222;
-    line-height: 1.15;
-    letter-spacing: 0.005em;
-    transition: background 0.12s;
+    font-size: 0.93rem;
+    color: #21272b;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    transition: background 0.17s;
 }
 .leads-table tr:hover td {
-    background: #f4f6fa;
+    background: #f5f7fa;
 }
 .leads-table tr:last-child td {
     border-bottom: none;
 }
 .leads-table th:first-child, .leads-table td:first-child {
-    border-top-left-radius: 7px;
+    border-top-left-radius: 10px;
 }
 .leads-table th:last-child, .leads-table td:last-child {
-    border-top-right-radius: 7px;
+    border-top-right-radius: 10px;
 }
 .leads-table-wrapper::-webkit-scrollbar {
-    height: 6px;
+    height: 8px;
     background: #e6eaf2;
-    border-radius: 3px;
+    border-radius: 5px;
 }
 .leads-table-wrapper::-webkit-scrollbar-thumb {
     background: #b5b9c5;
-    border-radius: 3px;
+    border-radius: 5px;
 }
 @media (max-width: 900px) {
     .leads-table th, .leads-table td {
-        font-size: 0.77rem;
-        padding: 3px 3px 3px 3px;
+        font-size: 0.87rem;
+        padding: 6px 8px 5px 8px;
     }
     .leads-table-wrapper {
-        max-width: 100vw;
-        padding: 0 0 4px 0;
+        max-width: 99vw;
+        padding: 0 0 8px 0;
     }
 }
-/* Pill badge styles for table Lead Status column */
-.status-badge {
-    display: inline-block;
-    min-width: 56px;
-    padding: 1px 10px 1px 10px;
-    font-size: 0.80rem;
-    font-weight: 600;
-    border-radius: 14px;
-    color: #fff;
-    text-align: center;
-    box-shadow: 0 1px 2px rgba(44,62,80,0.06);
-    margin: 1px 0;
-    line-height: 1.6;
-}
-.status-badge-interested {
-    background: #FFD700; color: #333;
-}
-.status-badge-notinterested {
-    background: #FB4141;
-}
-.status-badge-closed {
-    background: #B4E50D; color: #333;
-}
-.status-badge-default {
-    background: #666;
-}
-</style>
-""", unsafe_allow_html=True)
 .circles-row {
     display: flex;
     justify-content: center;
