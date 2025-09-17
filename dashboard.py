@@ -1227,6 +1227,30 @@ st.markdown("""
     80% { transform: scale(1.1);}
     100% { transform: scale(1);}
 }
+/* Status badge styles for table status column (like the image) */
+.status-badge {
+    display: inline-block;
+    min-width: 70px;
+    padding: 2px 18px 2px 18px;
+    font-size: 1.09em;
+    font-weight: 600;
+    border-radius: 16px;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(44,62,80,0.08);
+    margin: 2px 0;
+    line-height: 1.7;
+}
+.status-badge-progress {
+    background: #21b573;
+}
+.status-badge-open {
+    background: #ffc107;
+    color: #333;
+}
+.status-badge-onhold {
+    background: #e74c3c;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1258,6 +1282,27 @@ st.markdown(f"""
 
 st.markdown("### Leads Data")
 
+# --- Status badge HTML generator (for table only) ---
+def status_badge_html(status_value):
+    """
+    Returns HTML for a colored badge for given status.
+    Matches the visual style shown in the reference image.
+    - "Progress" => green
+    - "Open" => yellow
+    - "On hold" => red
+    """
+    val = str(status_value).strip().lower()
+    if val == "progress":
+        klass = "status-badge status-badge-progress"
+    elif val == "open":
+        klass = "status-badge status-badge-open"
+    elif val == "on hold":
+        klass = "status-badge status-badge-onhold"
+    else:
+        klass = "status-badge"
+    # Title case for display
+    return f'<span class="{klass}">{status_value}</span>'
+
 if not df.empty:
     # Assign unique color to each month
     if "Date" in df.columns:
@@ -1268,10 +1313,9 @@ if not df.empty:
     else:
         month_to_color = {}
 
-    # Color the Lead Status column
+    # Color/format the Lead Status column (for circle KPIs), but not for table
     if "Lead Status" in df.columns:
         df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
-        df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
     if "Lead Status Clean" in df.columns:
         df = df.drop(columns=["Lead Status Clean"])
 
@@ -1300,7 +1344,11 @@ if not df.empty:
         for idx, row in df.iterrows():
             html += '<tr>'
             for i, cell in enumerate(row):
-                if headers[i] == "Date":
+                col_hdr = headers[i]
+                # Use the badge for the "Status" column (case-insensitive match)
+                if col_hdr.lower() == "status":
+                    html += f'<td>{status_badge_html(cell)}</td>'
+                elif col_hdr == "Date":
                     month = str(cell).strip()
                     bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
                     html += f'<td style="{bgcolor}">{cell}</td>'
