@@ -1227,7 +1227,7 @@ st.markdown("""
     80% { transform: scale(1.1);}
     100% { transform: scale(1);}
 }
-/* Status badge styles for table status column (like the image) */
+/* Status badge styles for table Lead Status column */
 .status-badge {
     display: inline-block;
     min-width: 70px;
@@ -1241,15 +1241,17 @@ st.markdown("""
     margin: 2px 0;
     line-height: 1.7;
 }
-.status-badge-progress {
-    background: #21b573;
+.status-badge-interested {
+    background: #FFD700; color: #333;
 }
-.status-badge-open {
-    background: #ffc107;
-    color: #333;
+.status-badge-notinterested {
+    background: #FB4141;
 }
-.status-badge-onhold {
-    background: #e74c3c;
+.status-badge-closed {
+    background: #B4E50D; color: #333;
+}
+.status-badge-default {
+    background: #666;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1283,25 +1285,17 @@ st.markdown(f"""
 st.markdown("### Leads Data")
 
 # --- Status badge HTML generator (for table only) ---
-def status_badge_html(status_value):
-    """
-    Returns HTML for a colored badge for given status.
-    Matches the visual style shown in the reference image.
-    - "Progress" => green
-    - "Open" => yellow
-    - "On hold" => red
-    """
-    val = str(status_value).strip().lower()
-    if val == "progress":
-        klass = "status-badge status-badge-progress"
-    elif val == "open":
-        klass = "status-badge status-badge-open"
-    elif val == "on hold":
-        klass = "status-badge status-badge-onhold"
+def lead_status_badge_html(status_value):
+    val = str(status_value).strip()
+    if val.lower() == "interested":
+        klass = "status-badge status-badge-interested"
+    elif val.lower() == "not interested":
+        klass = "status-badge status-badge-notinterested"
+    elif val.lower() == "closed":
+        klass = "status-badge status-badge-closed"
     else:
-        klass = "status-badge"
-    # Title case for display
-    return f'<span class="{klass}">{status_value}</span>'
+        klass = "status-badge status-badge-default"
+    return f'<span class="{klass}">{val}</span>'
 
 if not df.empty:
     # Assign unique color to each month
@@ -1345,9 +1339,9 @@ if not df.empty:
             html += '<tr>'
             for i, cell in enumerate(row):
                 col_hdr = headers[i]
-                # Use the badge for the "Status" column (case-insensitive match)
-                if col_hdr.lower() == "status":
-                    html += f'<td>{status_badge_html(cell)}</td>'
+                # Lead Status BADGE styling ONLY for Lead Status column
+                if col_hdr.lower() == "lead status":
+                    html += f'<td>{lead_status_badge_html(cell)}</td>'
                 elif col_hdr == "Date":
                     month = str(cell).strip()
                     bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
