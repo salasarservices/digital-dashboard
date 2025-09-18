@@ -1102,144 +1102,97 @@ display_brokerage = format_brokerage_circle_value(total_brokerage)
 st.markdown("""
 <style>
 .leads-table-wrapper {
-    margin: 0 auto 16px auto;
-    width: 98vw;
-    min-width: 360px;
-    max-width: 1100px;
+    margin: 0 auto 10px auto;
+    width: 100vw;
+    min-width: 0;
+    max-width: 100vw;
     overflow-x: auto;
     font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.09);
-    padding: 8px 0 18px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(44, 62, 80, 0.06);
+    padding: 2px 0 8px 0;
 }
 .leads-table {
     border-collapse: separate;
     border-spacing: 0;
     width: 100%;
-    min-width: 360px;
+    min-width: 0;
     background: #fff;
-    font-size: 0.90rem;
-    border-radius: 12px;
+    font-size: 0.82rem;
+    border-radius: 8px;
     overflow: hidden;
 }
 .leads-table th {
     background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
     color: #fff;
     font-weight: 600;
-    padding: 9px 18px 8px 13px;
-    border-bottom: 2.5px solid #e3e6eb;
+    padding: 5px 6px 4px 6px;
+    border-bottom: 1.5px solid #e3e6eb;
     text-align: left;
     white-space: nowrap;
-    font-size: 1.02rem;
-    letter-spacing: 0.02em;
+    font-size: 0.90rem;
+    letter-spacing: 0.01em;
     position: sticky;
     top: 0;
     z-index: 2;
-    box-shadow: 0 2px 6px rgba(44,62,80,0.04);
 }
 .leads-table td {
-    padding: 7px 13px 6px 13px;
+    padding: 4px 6px 3px 6px;
     border-bottom: 1px solid #f1f2f6;
     background: #fff;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 0.93rem;
-    color: #21272b;
-    line-height: 1.35;
-    letter-spacing: 0.01em;
-    transition: background 0.17s;
+    font-size: 0.82rem;
+    color: #222;
+    line-height: 1.15;
+    letter-spacing: 0.005em;
+    transition: background 0.12s;
 }
 .leads-table tr:hover td {
-    background: #f5f7fa;
+    background: #f4f6fa;
 }
 .leads-table tr:last-child td {
     border-bottom: none;
 }
 .leads-table th:first-child, .leads-table td:first-child {
-    border-top-left-radius: 10px;
+    border-top-left-radius: 7px;
 }
 .leads-table th:last-child, .leads-table td:last-child {
-    border-top-right-radius: 10px;
+    border-top-right-radius: 7px;
 }
 .leads-table-wrapper::-webkit-scrollbar {
-    height: 8px;
+    height: 6px;
     background: #e6eaf2;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 .leads-table-wrapper::-webkit-scrollbar-thumb {
     background: #b5b9c5;
-    border-radius: 5px;
+    border-radius: 3px;
 }
 @media (max-width: 900px) {
     .leads-table th, .leads-table td {
-        font-size: 0.87rem;
-        padding: 6px 8px 5px 8px;
+        font-size: 0.77rem;
+        padding: 3px 3px 3px 3px;
     }
     .leads-table-wrapper {
-        max-width: 99vw;
-        padding: 0 0 8px 0;
+        max-width: 100vw;
+        padding: 0 0 4px 0;
     }
 }
-.circles-row {
-    display: flex;
-    justify-content: center;
-    gap: 42px;
-    margin-bottom: 30px;
-    flex-wrap: wrap;
-}
-.circle-animate {
-    width: 110px;
-    height: 110px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.1rem;
-    color: #fff;
-    font-weight: bold;
-    box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
-    animation: pop 1s ease;
-    margin-bottom: 6px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    text-shadow: 0 1px 3px #2227;
-    letter-spacing: 1px;
-}
-.circle-animate:hover {
-    transform: scale(1.10);
-    box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
-}
-.circle-leads    { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}
-.circle-int      { background: linear-gradient(135deg, #FFD700 0%, #FFB200 100%);}
-.circle-notint   { background: linear-gradient(135deg, #FB4141 0%, #C91F1F 100%);}
-.circle-closed   { background: linear-gradient(135deg, #B4E50D 0%, #7BA304 100%);}
-.circle-brokerage { background: linear-gradient(135deg, #0dbe62 0%, #1ff1a7 100%);}
-.lead-label {
-    text-align:center; 
-    font-weight:600;
-    font-size: 1.1rem;
-    color: #888;
-    letter-spacing: 1px;
-    margin-bottom: 0.7rem;
-}
-@keyframes pop {
-    0% { transform: scale(0.5);}
-    80% { transform: scale(1.1);}
-    100% { transform: scale(1);}
-}
-/* Status badge styles for table Lead Status column */
+/* Pill badge styles for table Lead Status column */
 .status-badge {
     display: inline-block;
-    min-width: 70px;
-    padding: 2px 18px 2px 18px;
-    font-size: 1.09em;
+    min-width: 56px;
+    padding: 1px 10px 1px 10px;
+    font-size: 0.80rem;
     font-weight: 600;
-    border-radius: 16px;
+    border-radius: 14px;
     color: #fff;
     text-align: center;
-    box-shadow: 0 1px 3px rgba(44,62,80,0.08);
-    margin: 2px 0;
-    line-height: 1.7;
+    box-shadow: 0 1px 2px rgba(44,62,80,0.06);
+    margin: 1px 0;
+    line-height: 1.6;
 }
 .status-badge-interested {
     background: #FFD700; color: #333;
@@ -1365,11 +1318,11 @@ if not df.empty:
         unsafe_allow_html=True,
     )
 
-    # --- Expand/Collapse Button ---
-    if len(df) > 10:
+    # --- Expand/Collapse Button: Always show if more than 10 rows or if expanded
+    if len(df) > 10 or show_full:
         arrow = "▼" if not show_full else "▲"
         label = "Expand All" if not show_full else "Collapse"
-        if st.button(f"{arrow} {label}"):
+        if st.button(f"{arrow} {label}", key="expand_collapse_leads_table"):
             st.session_state["show_full_leads_table"] = not show_full
 
 else:
