@@ -1329,13 +1329,21 @@ if not df.empty:
             cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
             df = df[cols]
 
-    def df_to_colored_html(df):
-        headers = df.columns.tolist()
+    # --- Table Pagination State ---
+    if "show_full_leads_table" not in st.session_state:
+        st.session_state["show_full_leads_table"] = False
+
+    # --- Table Slicing ---
+    show_full = st.session_state["show_full_leads_table"]
+    display_df = df if show_full or len(df) <= 10 else df.iloc[:10]
+
+    def df_to_colored_html(display_df):
+        headers = display_df.columns.tolist()
         html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
         for h in headers:
             html += f'<th>{h}</th>'
         html += '</tr></thead>\n<tbody>'
-        for idx, row in df.iterrows():
+        for idx, row in display_df.iterrows():
             html += '<tr>'
             for i, cell in enumerate(row):
                 col_hdr = headers[i]
@@ -1353,9 +1361,17 @@ if not df.empty:
         return html
 
     st.write(
-        df_to_colored_html(df),
+        df_to_colored_html(display_df),
         unsafe_allow_html=True,
     )
+
+    # --- Expand/Collapse Button ---
+    if len(df) > 10:
+        arrow = "▼" if not show_full else "▲"
+        label = "Expand All" if not show_full else "Collapse"
+        if st.button(f"{arrow} {label}"):
+            st.session_state["show_full_leads_table"] = not show_full
+
 else:
     st.info("No leads data found in MongoDB.")
 # =========================
