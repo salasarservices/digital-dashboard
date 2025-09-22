@@ -1020,7 +1020,6 @@ def get_leads_from_mongodb():
 def date_to_mon_yy(date_val):
     """Convert date to 'Mon YY' format, e.g., Sep 25."""
     try:
-        # Accept pandas Timestamp, int (yyyymmdd), or string
         if isinstance(date_val, pd.Timestamp):
             dt = date_val
         elif isinstance(date_val, (int, float)):
@@ -1034,7 +1033,6 @@ def date_to_mon_yy(date_val):
         return ""
 
 def get_month_color(month_label):
-    # Pastel color palette for months
     pastel_palette = [
         "#F7F1D5", "#FBE4EB", "#D3FBE4", "#E4EAFF", "#FFE4F1",
         "#E4FFF6", "#F5E4FF", "#F1FFE4", "#FFE4E4", "#E4F1FF"
@@ -1090,15 +1088,15 @@ if leads:
         df["MonYY"] = ""
         month_to_color = {}
 
-    # Brokerage calculation
+    # Brokerage calculation and nan/None as 0
     if "Brokerage Received" in df.columns:
-        df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
-        total_brokerage = df["Brokerage Received"].dropna().sum()
+        df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce").fillna(0)
+        total_brokerage = df["Brokerage Received"].sum()
     else:
-        df["Brokerage Received"] = np.nan
+        df["Brokerage Received"] = 0.0
         total_brokerage = 0.0
 
-    # Lead status counts
+    # Lead status counts and pills
     if "Lead Status" in df.columns:
         df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
         interested_count = (df["Lead Status Clean"] == "Interested").sum()
@@ -1196,16 +1194,27 @@ st.markdown("### Leads Data")
 # --- Table Display ---
 if not df.empty:
     # Prepare columns for display
-    # Remove 'Date', place 'MonYY' as first, pill status as last
+    # Remove 'Date', place 'MonYY' as first, 'Lead Status Pill' before 'Brokerage Received'
     display_cols = []
     if "MonYY" in df.columns:
         display_cols.append("MonYY")
-    for col in df.columns:
-        if col in ("Date", "MonYY", "Lead Status Pill", "Lead Status Clean"):
-            continue
-        display_cols.append(col)
-    if "Lead Status Pill" in df.columns:
+    # Add all columns except 'Date', 'MonYY', 'Lead Status Pill', 'Lead Status Clean', 'Brokerage Received'
+    main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Lead Status Pill", "Lead Status Clean", "Brokerage Received")]
+    display_cols.extend(main_cols)
+    # Insert 'Lead Status Pill' if present, right before 'Brokerage Received'
+    if "Lead Status Pill" in df.columns and "Brokerage Received" in df.columns:
+        # Find where 'Brokerage Received' would be
+        if "Brokerage Received" not in display_cols:
+            display_cols.append("Brokerage Received")
+        else:
+            # Insert 'Lead Status Pill' before 'Brokerage Received'
+            b_idx = display_cols.index("Brokerage Received")
+            display_cols.insert(b_idx, "Lead Status Pill")
+    elif "Lead Status Pill" in df.columns:
         display_cols.append("Lead Status Pill")
+    # Make sure "Brokerage Received" is present and is last if not already there
+    if "Brokerage Received" in df.columns and "Brokerage Received" not in display_cols:
+        display_cols.append("Brokerage Received")
     df_display = df[display_cols]
 
     # --- Minimal Table CSS (compact, pastel month, pill status) ---
@@ -1259,6 +1268,8 @@ if not df.empty:
                 html += f'<th style="min-width:54px;">Month</th>'
             elif h == "Lead Status Pill":
                 html += f'<th>Lead Status</th>'
+            elif h == "Brokerage Received":
+                html += f'<th>Brokerage Received</th>'
             else:
                 html += f'<th>{h}</th>'
         html += '</tr></thead>\n<tbody>'
@@ -1272,6 +1283,10 @@ if not df.empty:
                     html += f'<td style="{bgcolor}; text-align:center;">{cell}</td>'
                 elif h == "Lead Status Pill":
                     html += f'<td style="text-align:center;">{cell}</td>'
+                elif h == "Brokerage Received":
+                    # Always show as ₹ and 0 if nan/None
+                    val = 0.0 if pd.isnull(cell) else cell
+                    html += f'<td>₹ {val:.2f}</td>'
                 else:
                     html += f'<td>{cell}</td>'
             html += '</tr>'
