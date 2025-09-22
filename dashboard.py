@@ -1104,6 +1104,7 @@ else:
 
 display_brokerage = format_brokerage_circle_value(total_brokerage)
 
+# Dashboard circles (unchanged)
 st.markdown("""
 <style>
 .circles-row {
