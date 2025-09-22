@@ -1000,6 +1000,7 @@ with col2:
 # LEADS SECTION
 # =========================
 
+# --- Lead Data Fetching ---
 def get_leads_from_mongodb():
     try:
         mongo_uri_leads = st.secrets["mongo_uri_leads"]
@@ -1014,30 +1015,50 @@ def get_leads_from_mongodb():
         st.error(f"Could not fetch leads: {e}")
         return []
 
-def lead_status_colored(status):
-    status_clean = str(status).strip()
-    colors = {
-        "Interested": "#FFD700",
-        "Not Interested": "#FB4141",
-        "Closed": "#B4E50D"
-    }
-    color = colors.get(status_clean, "#666")
-    return f"<b style='color: {color};'>{status_clean}</b>"
+# --- Helper Functions ---
 
-def get_month_color(month_index):
-    palette = [
-        "#f7f1d5", "#fbe4eb", "#d3fbe4", "#e4eaff", "#ffe4f1",
-        "#e4fff6", "#f5e4ff", "#f1ffe4", "#ffe4e4", "#e4f1ff"
-    ]
-    return palette[month_index % len(palette)]
-
-def yyyymmdd_to_month_year(yyyymmdd):
+def date_to_mon_yy(date_val):
+    """Convert date to 'Mon YY' format, e.g., Sep 25."""
     try:
-        date_str = str(yyyymmdd)[:8]
-        dt = datetime.strptime(date_str, "%Y%m%d")
-        return dt.strftime("%B %Y")
+        # Accept pandas Timestamp, int (yyyymmdd), or string
+        if isinstance(date_val, pd.Timestamp):
+            dt = date_val
+        elif isinstance(date_val, (int, float)):
+            dt = pd.to_datetime(str(int(date_val)), format="%Y%m%d", errors="coerce")
+        else:
+            dt = pd.to_datetime(str(date_val), errors="coerce")
+        if pd.isnull(dt):
+            return ""
+        return dt.strftime("%b %y")
     except Exception:
         return ""
+
+def get_month_color(month_label):
+    # Pastel color palette for months
+    pastel_palette = [
+        "#F7F1D5", "#FBE4EB", "#D3FBE4", "#E4EAFF", "#FFE4F1",
+        "#E4FFF6", "#F5E4FF", "#F1FFE4", "#FFE4E4", "#E4F1FF"
+    ]
+    idx = abs(hash(month_label)) % len(pastel_palette)
+    return pastel_palette[idx]
+
+def lead_status_pill(status):
+    status_clean = str(status).strip()
+    pill_colors = {
+        "Interested": "#ffe9a8",
+        "Not Interested": "#ffb1b1",
+        "Closed": "#c8f7b5"
+    }
+    text_colors = {
+        "Interested": "#a67c00",
+        "Not Interested": "#b30000",
+        "Closed": "#227a00"
+    }
+    color = pill_colors.get(status_clean, "#e0e0e0")
+    tcolor = text_colors.get(status_clean, "#444")
+    return (f"<span style='display:inline-block; padding:3px 16px; border-radius:16px; "
+            f"background:{color}; color:{tcolor}; font-weight:600; font-size:0.93em; "
+            f"letter-spacing:0.5px; border:1px solid #eee;'>{status_clean}</span>")
 
 def format_brokerage_circle_value(val):
     if val >= 10000000:
@@ -1051,20 +1072,27 @@ def format_brokerage_circle_value(val):
     else:
         return f"₹ {val:.2f}"
 
+# --- Leads Section Header ---
 st.markdown("## Leads Dashboard")
 
+# --- Data Processing ---
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
-    # Date conversion
+    # Date conversion and month label
     if "Date" in df.columns:
-        df["Date"] = df["Date"].apply(yyyymmdd_to_month_year)
+        df["MonYY"] = df["Date"].apply(date_to_mon_yy)
+        months = df["MonYY"].fillna("").astype(str).unique()
+        months = [m for m in months if m.strip() != ""]
+        months.sort()
+        month_to_color = {m: get_month_color(m) for m in months}
+    else:
+        df["MonYY"] = ""
+        month_to_color = {}
 
-    # Use only the exact "Brokerage Received" field for calculation and display
+    # Brokerage calculation
     if "Brokerage Received" in df.columns:
-        # Convert to numeric, coerce errors (non-numeric/nan/null become np.nan)
         df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
-        # Sum ignoring nan/null
         total_brokerage = df["Brokerage Received"].dropna().sum()
     else:
         df["Brokerage Received"] = np.nan
@@ -1076,128 +1104,47 @@ if leads:
         interested_count = (df["Lead Status Clean"] == "Interested").sum()
         not_interested_count = (df["Lead Status Clean"] == "Not Interested").sum()
         closed_count = (df["Lead Status Clean"] == "Closed").sum()
+        df["Lead Status Pill"] = df["Lead Status"].apply(lead_status_pill)
     else:
         interested_count = not_interested_count = closed_count = 0
-
+        df["Lead Status Pill"] = ""
     total_leads = len(df)
 else:
     df = pd.DataFrame()
     total_leads = interested_count = not_interested_count = closed_count = 0
     total_brokerage = 0.0
+    month_to_color = {}
 
 display_brokerage = format_brokerage_circle_value(total_brokerage)
 
-# ----- Professional Table Style -----
+# --- Dashboard Circles ---
 st.markdown("""
 <style>
-.leads-table-wrapper {
-    margin: 0 auto 16px auto;
-    width: 98vw;
-    min-width: 360px;
-    max-width: 1100px;
-    overflow-x: auto;
-    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(44, 62, 80, 0.09);
-    padding: 8px 0 18px 0;
-}
-.leads-table {
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
-    min-width: 360px;
-    background: #fff;
-    font-size: 0.90rem;
-    border-radius: 12px;
-    overflow: hidden;
-}
-.leads-table th {
-    background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
-    color: #fff;
-    font-weight: 600;
-    padding: 9px 18px 8px 13px;
-    border-bottom: 2.5px solid #e3e6eb;
-    text-align: left;
-    white-space: nowrap;
-    font-size: 1.02rem;
-    letter-spacing: 0.02em;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    box-shadow: 0 2px 6px rgba(44,62,80,0.04);
-}
-.leads-table td {
-    padding: 7px 13px 6px 13px;
-    border-bottom: 1px solid #f1f2f6;
-    background: #fff;
-    vertical-align: middle;
-    white-space: nowrap;
-    font-size: 0.93rem;
-    color: #21272b;
-    line-height: 1.35;
-    letter-spacing: 0.01em;
-    transition: background 0.17s;
-}
-.leads-table tr:hover td {
-    background: #f5f7fa;
-}
-.leads-table tr:last-child td {
-    border-bottom: none;
-}
-.leads-table th:first-child, .leads-table td:first-child {
-    border-top-left-radius: 10px;
-}
-.leads-table th:last-child, .leads-table td:last-child {
-    border-top-right-radius: 10px;
-}
-.leads-table-wrapper::-webkit-scrollbar {
-    height: 8px;
-    background: #e6eaf2;
-    border-radius: 5px;
-}
-.leads-table-wrapper::-webkit-scrollbar-thumb {
-    background: #b5b9c5;
-    border-radius: 5px;
-}
-@media (max-width: 900px) {
-    .leads-table th, .leads-table td {
-        font-size: 0.87rem;
-        padding: 6px 8px 5px 8px;
-    }
-    .leads-table-wrapper {
-        max-width: 99vw;
-        padding: 0 0 8px 0;
-    }
-}
 .circles-row {
     display: flex;
     justify-content: center;
-    gap: 42px;
-    margin-bottom: 30px;
+    gap: 33px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
 }
 .circle-animate {
-    width: 110px;
-    height: 110px;
+    width: 88px;
+    height: 88px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.1rem;
+    font-size: 1.49rem;
     color: #fff;
     font-weight: bold;
-    box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
+    box-shadow: 0 2px 8px rgba(250, 190, 88, 0.18);
     animation: pop 1s ease;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     text-shadow: 0 1px 3px #2227;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
-.circle-animate:hover {
-    transform: scale(1.10);
-    box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
-}
+.circle-animate:hover { transform: scale(1.08); }
 .circle-leads    { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}
 .circle-int      { background: linear-gradient(135deg, #FFD700 0%, #FFB200 100%);}
 .circle-notint   { background: linear-gradient(135deg, #FB4141 0%, #C91F1F 100%);}
@@ -1206,20 +1153,19 @@ st.markdown("""
 .lead-label {
     text-align:center; 
     font-weight:600;
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     color: #888;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     margin-bottom: 0.7rem;
 }
 @keyframes pop {
     0% { transform: scale(0.5);}
-    80% { transform: scale(1.1);}
+    80% { transform: scale(1.11);}
     100% { transform: scale(1);}
 }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Dashboard Circles ---
 st.markdown(f"""
 <div class="circles-row">
     <div>
@@ -1247,62 +1193,92 @@ st.markdown(f"""
 
 st.markdown("### Leads Data")
 
+# --- Table Display ---
 if not df.empty:
-    # Assign unique color to each month
-    if "Date" in df.columns:
-        months = df["Date"].fillna("").astype(str).unique()
-        months = [m for m in months if m.strip() != ""]
-        months.sort()
-        month_to_color = {m: get_month_color(i) for i, m in enumerate(months)}
-    else:
-        month_to_color = {}
+    # Prepare columns for display
+    # Remove 'Date', place 'MonYY' as first, pill status as last
+    display_cols = []
+    if "MonYY" in df.columns:
+        display_cols.append("MonYY")
+    for col in df.columns:
+        if col in ("Date", "MonYY", "Lead Status Pill", "Lead Status Clean"):
+            continue
+        display_cols.append(col)
+    if "Lead Status Pill" in df.columns:
+        display_cols.append("Lead Status Pill")
+    df_display = df[display_cols]
 
-    # Color the Lead Status column
-    if "Lead Status" in df.columns:
-        df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
-        df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
-    if "Lead Status Clean" in df.columns:
-        df = df.drop(columns=["Lead Status Clean"])
+    # --- Minimal Table CSS (compact, pastel month, pill status) ---
+    st.markdown("""
+    <style>
+    .leads-table-wrapper { width:99vw; max-width:1100px; overflow-x:auto; }
+    .leads-table-min {
+        border-collapse:separate;
+        border-spacing:0;
+        width:100%;
+        font-size:0.82rem;
+        background:#fff;
+        border-radius:9px;
+        overflow:hidden;
+        margin:0;
+    }
+    .leads-table-min th, .leads-table-min td {
+        padding:3.8px 6.5px 3.1px 6.5px;
+        white-space:nowrap;
+        font-size:0.84rem;
+    }
+    .leads-table-min th {
+        background: #31406e;
+        color:#fff;
+        font-weight:600;
+        border-bottom:1.2px solid #e3e6eb;
+        text-align:left;
+        letter-spacing:0.01em;
+        position:sticky;
+        top:0;
+        z-index:2;
+    }
+    .leads-table-min td {
+        border-bottom:1px solid #f1f2f6;
+        background:#fff;
+        vertical-align:middle;
+        color:#222;
+        line-height:1.15;
+    }
+    .leads-table-min tr:hover td { background:#f5f7fa; }
+    .leads-table-min tr:last-child td { border-bottom:none; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Drop 'Number' column if it exists
-    if "Number" in df.columns:
-        df = df.drop(columns=["Number"])
-
-    # Only show "Brokerage Received" (case-sensitive) column, formatted for display
-    if "Brokerage Received" in df.columns:
-        df["Brokerage Received"] = df["Brokerage Received"].apply(
-            lambda x: f"₹ {x:.2f}" if pd.notnull(x) else ""
-        )
-        # Place Brokerage Received just after Lead Status if present
-        lead_status_idx = df.columns.get_loc("Lead Status") if "Lead Status" in df.columns else -1
-        if lead_status_idx != -1:
-            cols = list(df.columns)
-            cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
-            df = df[cols]
-
+    # --- HTML Table Render ---
     def df_to_colored_html(df):
         headers = df.columns.tolist()
-        html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
+        html = '<div class="leads-table-wrapper"><table class="leads-table-min">\n<thead><tr>'
         for h in headers:
-            html += f'<th>{h}</th>'
+            if h == "MonYY":
+                html += f'<th style="min-width:54px;">Month</th>'
+            elif h == "Lead Status Pill":
+                html += f'<th>Lead Status</th>'
+            else:
+                html += f'<th>{h}</th>'
         html += '</tr></thead>\n<tbody>'
         for idx, row in df.iterrows():
             html += '<tr>'
-            for i, cell in enumerate(row):
-                if headers[i] == "Date":
+            for ih, cell in enumerate(row):
+                h = headers[ih]
+                if h == "MonYY":
                     month = str(cell).strip()
-                    bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
-                    html += f'<td style="{bgcolor}">{cell}</td>'
+                    bgcolor = f'background-color: {month_to_color.get(month, "#fafafa")}; font-weight: bold;'
+                    html += f'<td style="{bgcolor}; text-align:center;">{cell}</td>'
+                elif h == "Lead Status Pill":
+                    html += f'<td style="text-align:center;">{cell}</td>'
                 else:
                     html += f'<td>{cell}</td>'
             html += '</tr>'
         html += '</tbody></table></div>'
         return html
 
-    st.write(
-        df_to_colored_html(df),
-        unsafe_allow_html=True,
-    )
+    st.write(df_to_colored_html(df_display), unsafe_allow_html=True)
 else:
     st.info("No leads data found in MongoDB.")
 # =========================
