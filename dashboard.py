@@ -1038,21 +1038,29 @@ def get_month_color(month_label):
 
 def lead_status_pill(status):
     status_clean = str(status).strip()
-    pill_colors = {
-        "Interested": "#ffe9a8",
-        "Not Interested": "#ffb1b1",
-        "Closed": "#c8f7b5"
+    pill_styles = {
+        "Interested":   {"bg": "#0d6efd", "color": "#fff"},   # Bootstrap primary
+        "Not Interested": {"bg": "#dc3545", "color": "#fff"}, # Bootstrap danger
+        "Closed":      {"bg": "#198754", "color": "#fff"},    # Bootstrap success
+        "In Progress": {"bg": "#ffc107", "color": "#212529"}, # Bootstrap warning
+        "New":         {"bg": "#6c757d", "color": "#fff"},    # Bootstrap secondary
+        "":            {"bg": "#adb5bd", "color": "#212529"}, # Bootstrap light
     }
-    text_colors = {
-        "Interested": "#a67c00",
-        "Not Interested": "#b30000",
-        "Closed": "#227a00"
-    }
-    color = pill_colors.get(status_clean, "#e0e0e0")
-    tcolor = text_colors.get(status_clean, "#444")
-    return (f"<span class='lead-pill' style='display:inline-block; padding:3px 16px; border-radius:15px; "
-            f"background:{color}; color:{tcolor}; font-weight:600; font-size:0.93em; "
-            f"letter-spacing:0.5px; border:1px solid #eee;'>{status_clean}</span>")
+    style = pill_styles.get(status_clean, {"bg": "#adb5bd", "color": "#212529"})
+    return (f"<span class='lead-pill' style='"
+            f"display:inline-block;"
+            f"padding:5px 22px;"
+            f"border-radius:50px;"
+            f"background:{style['bg']};"
+            f"color:{style['color']};"
+            f"font-weight:600;"
+            f"font-size:1em;"
+            f"letter-spacing:0.5px;"
+            f"border:none;"
+            f"margin:0 4px;"
+            f"line-height:1.1;"
+            f"text-align:center;'>"
+            f"{status_clean if status_clean else 'N/A'}</span>")
 
 def format_brokerage_circle_value(val):
     if val >= 10000000:
@@ -1145,25 +1153,42 @@ st.markdown("""
     letter-spacing: 0.5px;
     margin-bottom: 0.7rem;
 }
-.lead-pill {
-    display: inline-block;
-    padding: 3px 16px;
-    border-radius: 15px;
-    font-weight: 600;
-    font-size: 0.93em;
-    letter-spacing: 0.5px;
-    border: 1px solid #eee;
-    box-shadow: 0 1px 4px 0 #eee;
-    transition: box-shadow 0.17s;
+.leads-table-wrapper { width:99vw; max-width:1100px; overflow-x:auto; }
+.leads-table-min {
+    border-collapse:separate;
+    border-spacing:0;
+    width:100%;
+    font-size:0.82rem;
+    background:#fff;
+    border-radius:9px;
+    overflow:hidden;
+    margin:0;
 }
-.lead-pill:hover {
-    box-shadow: 0 2px 10px 0 #e1e1e1;
+.leads-table-min th, .leads-table-min td {
+    padding:3.8px 6.5px 3.1px 6.5px;
+    white-space:nowrap;
+    font-size:0.94rem;
 }
-@keyframes pop {
-    0% { transform: scale(0.5);}
-    80% { transform: scale(1.11);}
-    100% { transform: scale(1);}
+.leads-table-min th {
+    background: #31406e;
+    color:#fff;
+    font-weight:600;
+    border-bottom:1.2px solid #e3e6eb;
+    text-align:left;
+    letter-spacing:0.01em;
+    position:sticky;
+    top:0;
+    z-index:2;
 }
+.leads-table-min td {
+    border-bottom:1px solid #f1f2f6;
+    background:#fff;
+    vertical-align:middle;
+    color:#222;
+    line-height:1.15;
+}
+.leads-table-min tr:hover td { background:#f5f7fa; }
+.leads-table-min tr:last-child td { border-bottom:none; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1213,7 +1238,6 @@ if not df.empty:
         display_cols.append("Brokerage Received")
     df_display = df[display_cols]
 
-    # HTML table render with pill badges
     def df_to_colored_html(df):
         headers = df.columns.tolist()
         html = '<div class="leads-table-wrapper"><table class="leads-table-min">\n<thead><tr>'
@@ -1246,46 +1270,6 @@ if not df.empty:
         html += '</tbody></table></div>'
         return html
 
-    st.markdown("""
-    <style>
-    .leads-table-wrapper { width:99vw; max-width:1100px; overflow-x:auto; }
-    .leads-table-min {
-        border-collapse:separate;
-        border-spacing:0;
-        width:100%;
-        font-size:0.82rem;
-        background:#fff;
-        border-radius:9px;
-        overflow:hidden;
-        margin:0;
-    }
-    .leads-table-min th, .leads-table-min td {
-        padding:3.8px 6.5px 3.1px 6.5px;
-        white-space:nowrap;
-        font-size:0.84rem;
-    }
-    .leads-table-min th {
-        background: #31406e;
-        color:#fff;
-        font-weight:600;
-        border-bottom:1.2px solid #e3e6eb;
-        text-align:left;
-        letter-spacing:0.01em;
-        position:sticky;
-        top:0;
-        z-index:2;
-    }
-    .leads-table-min td {
-        border-bottom:1px solid #f1f2f6;
-        background:#fff;
-        vertical-align:middle;
-        color:#222;
-        line-height:1.15;
-    }
-    .leads-table-min tr:hover td { background:#f5f7fa; }
-    .leads-table-min tr:last-child td { border-bottom:none; }
-    </style>
-    """, unsafe_allow_html=True)
     st.write(df_to_colored_html(df_display), unsafe_allow_html=True)
 else:
     st.info("No leads data found in MongoDB.")
