@@ -1000,11 +1000,12 @@ with col2:
 # LEADS SECTION
 # =========================
 
+
 def get_leads_from_mongodb():
     try:
-        mongo_uri_leads = st.secrets["mongo_uri_leads"]
+        mongo_uri = st.secrets["mongo_uri"]
         from pymongo import MongoClient
-        client = MongoClient(mongo_uri_leads)
+        client = MongoClient(mongo_uri)
         db = client["sal-leads"]
         leads_collection = db["leads"]
         leads = list(leads_collection.find({}, {"_id": 0}))
@@ -1031,57 +1032,38 @@ def get_month_color(month_index):
     ]
     return palette[month_index % len(palette)]
 
-def date_to_month_year_abbrev(date_val):
-    """
-    Takes a date string (e.g. '2025-07-01 00:00:00') or datetime object
-    and returns 'Mon YY' format (e.g. 'Jul 25').
-    """
-    if pd.isnull(date_val):
+def yyyymmdd_to_month_year(yyyymmdd):
+    try:
+        date_str = str(yyyymmdd)[:8]
+        dt = datetime.strptime(date_str, "%Y%m%d")
+        return dt.strftime("%B %Y")
+    except Exception:
         return ""
-    if isinstance(date_val, datetime):
-        dt = date_val
-    else:
-        try:
-            dt = pd.to_datetime(str(date_val), errors="coerce")
-        except Exception:
-            return ""
-    if pd.isnull(dt):
-        return ""
-    return dt.strftime("%b %y")  # e.g., 'Jul 25'
-
-def format_brokerage_circle_value(val):
-    if val >= 10000000:
-        return f"₹ {val/10000000:.1f}Cr"
-    elif val >= 100000:
-        return f"₹ {val/100000:.1f}L"
-    elif val >= 10000:
-        return f"₹ {val/1000:.0f}K"
-    elif val >= 1000:
-        return f"₹ {val/1000:.1f}K"
-    else:
-        return f"₹ {val:.2f}"
 
 st.markdown("## Leads Dashboard")
 
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
-
-    # --- Date conversion and formatting ---
+    # Date conversion
     if "Date" in df.columns:
-        df["Date"] = df["Date"].apply(date_to_month_year_abbrev)
+        df["Date"] = df["Date"].apply(yyyymmdd_to_month_year)
 
-    # Use only the exact "Brokerage Received" field for calculation and display
-    if "Brokerage Received" in df.columns:
-        # Convert to numeric, coerce errors (non-numeric/nan/null become np.nan)
-        df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce")
-        # Sum ignoring nan/null
-        total_brokerage = df["Brokerage Received"].dropna().sum()
-    else:
-        df["Brokerage Received"] = np.nan
-        total_brokerage = 0.0
+    # Merge Brokerage columns (case-insensitive)
+    colnames = [col.lower() for col in df.columns]
+    if "brokerage received" in colnames:
+        brcv_col = df.columns[colnames.index("brokerage received")]
+        df["Brokerage received"] = pd.to_numeric(df[brcv_col], errors="coerce")
+    elif "brokerage received" not in df.columns:
+        df["Brokerage received"] = 0.0
 
-    # Lead status counts
+    # If there's another similar column (wrong case), merge its values too
+    for col in df.columns:
+        if col.lower() == "brokerage received" and col != "Brokerage received":
+            df["Brokerage received"] = df["Brokerage received"].fillna(0) + pd.to_numeric(df[col], errors="coerce").fillna(0)
+            df = df.drop(columns=[col])
+
+    # Clean Lead Status and counts
     if "Lead Status" in df.columns:
         df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
         interested_count = (df["Lead Status Clean"] == "Interested").sum()
@@ -1091,126 +1073,108 @@ if leads:
         interested_count = not_interested_count = closed_count = 0
 
     total_leads = len(df)
+    total_brokerage = df["Brokerage received"].fillna(0).sum()
+
 else:
     df = pd.DataFrame()
     total_leads = interested_count = not_interested_count = closed_count = 0
     total_brokerage = 0.0
 
-display_brokerage = format_brokerage_circle_value(total_brokerage)
-
-# ----- Professional Table Style -----
 st.markdown("""
 <style>
-.leads-table-wrapper {
-    margin: 0 auto 10px auto;
-    width: 100vw;
-    min-width: 0;
-    max-width: 100vw;
-    overflow-x: auto;
-    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(44, 62, 80, 0.06);
-    padding: 2px 0 8px 0;
-}
-.leads-table {
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
-    min-width: 0;
-    background: #fff;
-    font-size: 0.82rem;
-    border-radius: 8px;
-    overflow: hidden;
-}
-.leads-table th {
-    background: linear-gradient(90deg, #31406e 0%, #37509b 100%);
+.circles-row {{
+    display: flex;
+    justify-content: center;
+    gap: 42px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}}
+.circle-animate {{
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
     color: #fff;
-    font-weight: 600;
-    padding: 5px 6px 4px 6px;
+    font-weight: bold;
+    box-shadow: 0 4px 16px rgba(250, 190, 88, 0.3);
+    animation: pop 1s ease;
+    margin-bottom: 6px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}}
+.circle-animate:hover {{
+    transform: scale(1.10);
+    box-shadow: 0 8px 32px rgba(250, 190, 88, 0.4);
+}}
+.circle-leads    {{ background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);}}
+.circle-int      {{ background: linear-gradient(135deg, #FFD700 0%, #FFB200 100%);}}
+.circle-notint   {{ background: linear-gradient(135deg, #FB4141 0%, #C91F1F 100%);}}
+.circle-closed   {{ background: linear-gradient(135deg, #B4E50D 0%, #7BA304 100%);}}
+.circle-brokerage {{ background: linear-gradient(135deg, #0dbe62 0%, #1ff1a7 100%);}}
+.lead-label {{
+    text-align:center; 
+    font-weight:600;
+    font-size: 1.1rem;
+    color: #888;
+    letter-spacing: 1px;
+    margin-bottom: 0.7rem;
+}}
+@keyframes pop {{
+    0% {{ transform: scale(0.5);}}
+    80% {{ transform: scale(1.1);}}
+    100% {{ transform: scale(1);}}
+}}
+/* Table styling */
+.leads-table-wrapper {{
+    margin: 0 auto 30px auto;
+    width: 95vw;
+    min-width: 760px;
+    overflow-x: auto;
+    font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+    background: #fff;
+}}
+.leads-table {{
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 0.92rem;
+    min-width: 760px;
+}}
+.leads-table th {{
+    background: #2d448d;
+    color: #ffff;
+    font-weight: 700;
+    padding: 0.24em 0.40em;
     border-bottom: 1.5px solid #e3e6eb;
     text-align: left;
     white-space: nowrap;
-    font-size: 0.90rem;
-    letter-spacing: 0.01em;
-    position: sticky;
-    top: 0;
-    z-index: 2;
-}
-.leads-table td {
-    padding: 4px 6px 3px 6px;
-    border-bottom: 1px solid #f1f2f6;
+    font-size: 0.97rem;
+}}
+.leads-table td {{
+    padding: 0.16em 0.35em;
+    border-bottom: 1px solid #e3e6eb;
     background: #fff;
     vertical-align: middle;
     white-space: nowrap;
-    font-size: 0.82rem;
-    color: #222;
-    line-height: 1.15;
-    letter-spacing: 0.005em;
-    transition: background 0.12s;
-}
-.leads-table tr:hover td {
-    background: #f4f6fa;
-}
-.leads-table tr:last-child td {
+    font-size: 0.92rem;
+}}
+.leads-table tr:last-child td {{
     border-bottom: none;
-}
-.leads-table th:first-child, .leads-table td:first-child {
-    border-top-left-radius: 7px;
-}
-.leads-table th:last-child, .leads-table td:last-child {
-    border-top-right-radius: 7px;
-}
-.leads-table-wrapper::-webkit-scrollbar {
-    height: 6px;
+}}
+.leads-table-wrapper::-webkit-scrollbar {{
+    height: 12px;
     background: #e6eaf2;
-    border-radius: 3px;
-}
-.leads-table-wrapper::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+}}
+.leads-table-wrapper::-webkit-scrollbar-thumb {{
     background: #b5b9c5;
-    border-radius: 3px;
-}
-@media (max-width: 900px) {
-    .leads-table th, .leads-table td {
-        font-size: 0.77rem;
-        padding: 3px 3px 3px 3px;
-    }
-    .leads-table-wrapper {
-        max-width: 100vw;
-        padding: 0 0 4px 0;
-    }
-}
-/* Pill badge styles for table Lead Status column */
-.status-badge {
-    display: inline-block;
-    min-width: 56px;
-    padding: 1px 10px 1px 10px;
-    font-size: 0.80rem;
-    font-weight: 600;
-    border-radius: 14px;
-    color: #fff;
-    text-align: center;
-    box-shadow: 0 1px 2px rgba(44,62,80,0.06);
-    margin: 1px 0;
-    line-height: 1.6;
-}
-.status-badge-interested {
-    background: #FFD700; color: #333;
-}
-.status-badge-notinterested {
-    background: #FB4141;
-}
-.status-badge-closed {
-    background: #B4E50D; color: #333;
-}
-.status-badge-default {
-    background: #666;
-}
+    border-radius: 8px;
+}}
 </style>
-""", unsafe_allow_html=True)
-
-# --- Dashboard Circles ---
-st.markdown(f"""
 <div class="circles-row">
     <div>
         <div class="circle-animate circle-leads">{total_leads}</div>
@@ -1229,26 +1193,19 @@ st.markdown(f"""
         <div class="lead-label">Closed</div>
     </div>
     <div>
-        <div class="circle-animate circle-brokerage">{display_brokerage}</div>
+        <div class="circle-animate circle-brokerage">₹ {total_brokerage:.2f}</div>
         <div class="lead-label">Total Brokerage received</div>
     </div>
 </div>
-""", unsafe_allow_html=True)
+""".format(
+    total_leads=total_leads,
+    interested_count=interested_count,
+    not_interested_count=not_interested_count,
+    closed_count=closed_count,
+    total_brokerage=total_brokerage,
+), unsafe_allow_html=True)
 
 st.markdown("### Leads Data")
-
-# --- Status badge HTML generator (for table only) ---
-def lead_status_badge_html(status_value):
-    val = str(status_value).strip()
-    if val.lower() == "interested":
-        klass = "status-badge status-badge-interested"
-    elif val.lower() == "not interested":
-        klass = "status-badge status-badge-notinterested"
-    elif val.lower() == "closed":
-        klass = "status-badge status-badge-closed"
-    else:
-        klass = "status-badge status-badge-default"
-    return f'<span class="{klass}">{val}</span>'
 
 if not df.empty:
     # Assign unique color to each month
@@ -1260,50 +1217,40 @@ if not df.empty:
     else:
         month_to_color = {}
 
-    # Color/format the Lead Status column (for circle KPIs), but not for table
+    # Color the Lead Status column
     if "Lead Status" in df.columns:
         df["Lead Status"] = df["Lead Status"].astype(str).str.strip()
+        df["Lead Status"] = df["Lead Status"].apply(lead_status_colored)
     if "Lead Status Clean" in df.columns:
         df = df.drop(columns=["Lead Status Clean"])
 
     # Drop 'Number' column if it exists
     if "Number" in df.columns:
         df = df.drop(columns=["Number"])
+    # Drop any duplicate brokerage columns (case-insensitive)
+    for col in df.columns:
+        if col.lower() == "brokerage received" and col != "Brokerage received":
+            df = df.drop(columns=[col])
 
-    # Only show "Brokerage Received" (case-sensitive) column, formatted for display
-    if "Brokerage Received" in df.columns:
-        df["Brokerage Received"] = df["Brokerage Received"].apply(
-            lambda x: f"₹ {x:.2f}" if pd.notnull(x) else ""
-        )
-        # Place Brokerage Received just after Lead Status if present
+    # Format 'Brokerage received' column with ₹ and 2 decimals, place after 'Lead Status'
+    if "Brokerage received" in df.columns:
+        df["Brokerage received"] = df["Brokerage received"].fillna(0).apply(lambda x: f"₹ {float(x):.2f}")
         lead_status_idx = df.columns.get_loc("Lead Status") if "Lead Status" in df.columns else -1
         if lead_status_idx != -1:
             cols = list(df.columns)
-            cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage Received")))
+            cols.insert(lead_status_idx + 1, cols.pop(cols.index("Brokerage received")))
             df = df[cols]
 
-    # --- Table Pagination State ---
-    if "show_full_leads_table" not in st.session_state:
-        st.session_state["show_full_leads_table"] = False
-
-    # --- Table Slicing ---
-    show_full = st.session_state["show_full_leads_table"]
-    display_df = df if show_full or len(df) <= 10 else df.iloc[:10]
-
-    def df_to_colored_html(display_df):
-        headers = display_df.columns.tolist()
+    def df_to_colored_html(df):
+        headers = df.columns.tolist()
         html = '<div class="leads-table-wrapper"><table class="leads-table">\n<thead><tr>'
         for h in headers:
             html += f'<th>{h}</th>'
         html += '</tr></thead>\n<tbody>'
-        for idx, row in display_df.iterrows():
+        for idx, row in df.iterrows():
             html += '<tr>'
             for i, cell in enumerate(row):
-                col_hdr = headers[i]
-                # Lead Status BADGE styling ONLY for Lead Status column
-                if col_hdr.lower() == "lead status":
-                    html += f'<td>{lead_status_badge_html(cell)}</td>'
-                elif col_hdr == "Date":
+                if headers[i] == "Date":
                     month = str(cell).strip()
                     bgcolor = f'background-color: {month_to_color.get(month, "#fff")}; font-weight: bold;'
                     html += f'<td style="{bgcolor}">{cell}</td>'
@@ -1314,17 +1261,9 @@ if not df.empty:
         return html
 
     st.write(
-        df_to_colored_html(display_df),
+        df_to_colored_html(df),
         unsafe_allow_html=True,
     )
-
-    # --- Expand/Collapse Button: Always show if more than 10 rows or if expanded
-    if len(df) > 10 or show_full:
-        arrow = "▼" if not show_full else "▲"
-        label = "Expand All" if not show_full else "Collapse"
-        if st.button(f"{arrow} {label}", key="expand_collapse_leads_table"):
-            st.session_state["show_full_leads_table"] = not show_full
-
 else:
     st.info("No leads data found in MongoDB.")
 # =========================
