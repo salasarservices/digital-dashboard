@@ -1054,7 +1054,7 @@ def lead_status_pill(status):
     }
     color = pill_colors.get(status_clean, "#e0e0e0")
     tcolor = text_colors.get(status_clean, "#444")
-    return (f"<span style='display:inline-block; padding:3px 16px; border-radius:16px; "
+    return (f"<span class='lead-pill' style='display:inline-block; padding:3px 16px; border-radius:15px; "
             f"background:{color}; color:{tcolor}; font-weight:600; font-size:0.93em; "
             f"letter-spacing:0.5px; border:1px solid #eee;'>{status_clean}</span>")
 
@@ -1156,6 +1156,13 @@ st.markdown("""
     letter-spacing: 0.5px;
     margin-bottom: 0.7rem;
 }
+.lead-pill {
+    transition: box-shadow 0.17s;
+    box-shadow: 0 1px 4px 0 #eee;
+}
+.lead-pill:hover {
+    box-shadow: 0 2px 10px 0 #e1e1e1;
+}
 @keyframes pop {
     0% { transform: scale(0.5);}
     80% { transform: scale(1.11);}
@@ -1198,21 +1205,16 @@ if not df.empty:
     display_cols = []
     if "MonYY" in df.columns:
         display_cols.append("MonYY")
-    # Add all columns except 'Date', 'MonYY', 'Lead Status Pill', 'Lead Status Clean', 'Brokerage Received'
     main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Lead Status Pill", "Lead Status Clean", "Brokerage Received")]
     display_cols.extend(main_cols)
-    # Insert 'Lead Status Pill' if present, right before 'Brokerage Received'
     if "Lead Status Pill" in df.columns and "Brokerage Received" in df.columns:
-        # Find where 'Brokerage Received' would be
         if "Brokerage Received" not in display_cols:
             display_cols.append("Brokerage Received")
         else:
-            # Insert 'Lead Status Pill' before 'Brokerage Received'
             b_idx = display_cols.index("Brokerage Received")
             display_cols.insert(b_idx, "Lead Status Pill")
     elif "Lead Status Pill" in df.columns:
         display_cols.append("Lead Status Pill")
-    # Make sure "Brokerage Received" is present and is last if not already there
     if "Brokerage Received" in df.columns and "Brokerage Received" not in display_cols:
         display_cols.append("Brokerage Received")
     df_display = df[display_cols]
@@ -1284,7 +1286,6 @@ if not df.empty:
                 elif h == "Lead Status Pill":
                     html += f'<td style="text-align:center;">{cell}</td>'
                 elif h == "Brokerage Received":
-                    # Always show as ₹ and 0 if nan/None
                     val = 0.0 if pd.isnull(cell) else cell
                     html += f'<td>₹ {val:.2f}</td>'
                 else:
