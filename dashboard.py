@@ -1000,7 +1000,6 @@ with col2:
 # LEADS SECTION
 # =========================
 
-# --- Lead Data Fetching ---
 def get_leads_from_mongodb():
     try:
         mongo_uri_leads = st.secrets["mongo_uri_leads"]
@@ -1015,10 +1014,7 @@ def get_leads_from_mongodb():
         st.error(f"Could not fetch leads: {e}")
         return []
 
-# --- Helper Functions ---
-
 def date_to_mon_yy(date_val):
-    """Convert date to 'Mon YY' format, e.g., Sep 25."""
     try:
         if isinstance(date_val, pd.Timestamp):
             dt = date_val
@@ -1070,14 +1066,11 @@ def format_brokerage_circle_value(val):
     else:
         return f"₹ {val:.2f}"
 
-# --- Leads Section Header ---
 st.markdown("## Leads Dashboard")
 
-# --- Data Processing ---
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
-    # Date conversion and month label
     if "Date" in df.columns:
         df["MonYY"] = df["Date"].apply(date_to_mon_yy)
         months = df["MonYY"].fillna("").astype(str).unique()
@@ -1087,16 +1080,12 @@ if leads:
     else:
         df["MonYY"] = ""
         month_to_color = {}
-
-    # Brokerage calculation and nan/None as 0
     if "Brokerage Received" in df.columns:
         df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce").fillna(0)
         total_brokerage = df["Brokerage Received"].sum()
     else:
         df["Brokerage Received"] = 0.0
         total_brokerage = 0.0
-
-    # Lead status counts and pills
     if "Lead Status" in df.columns:
         df["Lead Status Clean"] = df["Lead Status"].astype(str).str.strip()
         interested_count = (df["Lead Status Clean"] == "Interested").sum()
@@ -1115,7 +1104,6 @@ else:
 
 display_brokerage = format_brokerage_circle_value(total_brokerage)
 
-# --- Dashboard Circles ---
 st.markdown("""
 <style>
 .circles-row {
@@ -1205,10 +1193,8 @@ st.markdown(f"""
 
 st.markdown("### Leads Data")
 
-# --- Table Display ---
 if not df.empty:
-    # Prepare columns for display
-    # Remove 'Date', place 'MonYY' as first, 'Lead Status Pill' before 'Brokerage Received'
+    # Prepare columns for display: MonYY, main cols..., Lead Status Pill (before Brokerage Received), Brokerage Received
     display_cols = []
     if "MonYY" in df.columns:
         display_cols.append("MonYY")
@@ -1226,7 +1212,39 @@ if not df.empty:
         display_cols.append("Brokerage Received")
     df_display = df[display_cols]
 
-    # --- Minimal Table CSS (compact, pastel month, pill status) ---
+    # HTML table render with pill badges
+    def df_to_colored_html(df):
+        headers = df.columns.tolist()
+        html = '<div class="leads-table-wrapper"><table class="leads-table-min">\n<thead><tr>'
+        for h in headers:
+            if h == "MonYY":
+                html += f'<th style="min-width:54px;">Month</th>'
+            elif h == "Lead Status Pill":
+                html += f'<th>Lead Status</th>'
+            elif h == "Brokerage Received":
+                html += f'<th>Brokerage Received</th>'
+            else:
+                html += f'<th>{h}</th>'
+        html += '</tr></thead>\n<tbody>'
+        for idx, row in df.iterrows():
+            html += '<tr>'
+            for ih, cell in enumerate(row):
+                h = headers[ih]
+                if h == "MonYY":
+                    month = str(cell).strip()
+                    bgcolor = f'background-color: {month_to_color.get(month, "#fafafa")}; font-weight: bold;'
+                    html += f'<td style="{bgcolor}; text-align:center;">{cell}</td>'
+                elif h == "Lead Status Pill":
+                    html += f'<td style="text-align:center;">{cell}</td>'
+                elif h == "Brokerage Received":
+                    val = 0.0 if pd.isnull(cell) else cell
+                    html += f'<td>₹ {val:.2f}</td>'
+                else:
+                    html += f'<td>{cell}</td>'
+            html += '</tr>'
+        html += '</tbody></table></div>'
+        return html
+
     st.markdown("""
     <style>
     .leads-table-wrapper { width:99vw; max-width:1100px; overflow-x:auto; }
@@ -1267,40 +1285,6 @@ if not df.empty:
     .leads-table-min tr:last-child td { border-bottom:none; }
     </style>
     """, unsafe_allow_html=True)
-
-    # --- HTML Table Render ---
-    def df_to_colored_html(df):
-        headers = df.columns.tolist()
-        html = '<div class="leads-table-wrapper"><table class="leads-table-min">\n<thead><tr>'
-        for h in headers:
-            if h == "MonYY":
-                html += f'<th style="min-width:54px;">Month</th>'
-            elif h == "Lead Status Pill":
-                html += f'<th>Lead Status</th>'
-            elif h == "Brokerage Received":
-                html += f'<th>Brokerage Received</th>'
-            else:
-                html += f'<th>{h}</th>'
-        html += '</tr></thead>\n<tbody>'
-        for idx, row in df.iterrows():
-            html += '<tr>'
-            for ih, cell in enumerate(row):
-                h = headers[ih]
-                if h == "MonYY":
-                    month = str(cell).strip()
-                    bgcolor = f'background-color: {month_to_color.get(month, "#fafafa")}; font-weight: bold;'
-                    html += f'<td style="{bgcolor}; text-align:center;">{cell}</td>'
-                elif h == "Lead Status Pill":
-                    html += f'<td style="text-align:center;">{cell}</td>'
-                elif h == "Brokerage Received":
-                    val = 0.0 if pd.isnull(cell) else cell
-                    html += f'<td>₹ {val:.2f}</td>'
-                else:
-                    html += f'<td>{cell}</td>'
-            html += '</tr>'
-        html += '</tbody></table></div>'
-        return html
-
     st.write(df_to_colored_html(df_display), unsafe_allow_html=True)
 else:
     st.info("No leads data found in MongoDB.")
