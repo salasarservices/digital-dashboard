@@ -1157,8 +1157,15 @@ st.markdown("""
     margin-bottom: 0.7rem;
 }
 .lead-pill {
-    transition: box-shadow 0.17s;
+    display: inline-block;
+    padding: 3px 16px;
+    border-radius: 15px;
+    font-weight: 600;
+    font-size: 0.93em;
+    letter-spacing: 0.5px;
+    border: 1px solid #eee;
     box-shadow: 0 1px 4px 0 #eee;
+    transition: box-shadow 0.17s;
 }
 .lead-pill:hover {
     box-shadow: 0 2px 10px 0 #e1e1e1;
