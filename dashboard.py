@@ -1049,17 +1049,20 @@ def lead_status_pill(status):
     style = pill_styles.get(status_clean, {"bg": "#adb5bd", "color": "#212529"})
     return (f"<span class='lead-pill' style='"
             f"display:inline-block;"
-            f"padding:5px 22px;"
-            f"border-radius:50px;"
+            f"padding:0.35em 1.2em;"
+            f"font-size:1em;"
+            f"font-weight:600;"
+            f"border-radius:999px;"
+            f"line-height:1.1;"
+            f"border:none;"
+            f"margin:2px 0;"
+            f"vertical-align:middle;"
+            f"box-shadow:none;"
+            f"text-align:center;"
+            f"letter-spacing:0.1em;"
             f"background:{style['bg']};"
             f"color:{style['color']};"
-            f"font-weight:600;"
-            f"font-size:1em;"
-            f"letter-spacing:0.5px;"
-            f"border:none;"
-            f"margin:0 4px;"
-            f"line-height:1.1;"
-            f"text-align:center;'>"
+            f"'>"
             f"{status_clean if status_clean else 'N/A'}</span>")
 
 def format_brokerage_circle_value(val):
@@ -1152,6 +1155,21 @@ st.markdown("""
     color: #888;
     letter-spacing: 0.5px;
     margin-bottom: 0.7rem;
+}
+/* Add the pill badge styling to match Bootstrap pills */
+.lead-pill {
+    display: inline-block;
+    padding: 0.35em 1.2em;
+    font-size: 1em;
+    font-weight: 600;
+    border-radius: 999px;
+    line-height: 1.1;
+    border: none;
+    margin: 2px 0;
+    vertical-align: middle;
+    box-shadow: none;
+    text-align: center;
+    letter-spacing: 0.1em;
 }
 .leads-table-wrapper { width:99vw; max-width:1100px; overflow-x:auto; }
 .leads-table-min {
