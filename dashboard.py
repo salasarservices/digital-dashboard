@@ -1039,14 +1039,15 @@ def get_month_color(month_label):
 def lead_status_pill(status):
     status_clean = str(status).strip()
     pill_styles = {
-        "Interested":   {"bg": "#0d6efd", "color": "#fff"},   # Bootstrap primary
-        "Not Interested": {"bg": "#dc3545", "color": "#fff"}, # Bootstrap danger
-        "Closed":      {"bg": "#198754", "color": "#fff"},    # Bootstrap success
-        "In Progress": {"bg": "#ffc107", "color": "#212529"}, # Bootstrap warning
-        "New":         {"bg": "#6c757d", "color": "#fff"},    # Bootstrap secondary
-        "":            {"bg": "#adb5bd", "color": "#212529"}, # Bootstrap light
+        "Interested":   {"bg": "#E9CB35", "color": "#262626"},
+        "Closed":       {"bg": "#8CEB33", "color": "#262626"},
+        "Not Interested": {"bg": "#EA3D34", "color": "#fff"},
+        # Fallback for other statuses
+        "In Progress": {"bg": "#dee2e6", "color": "#262626"},
+        "New":         {"bg": "#dee2e6", "color": "#262626"},
+        "":            {"bg": "#dee2e6", "color": "#262626"},
     }
-    style = pill_styles.get(status_clean, {"bg": "#adb5bd", "color": "#212529"})
+    style = pill_styles.get(status_clean, {"bg": "#dee2e6", "color": "#262626"})
     return (f"<span class='lead-pill' style='"
             f"display:inline-block;"
             f"padding:0.35em 1.2em;"
@@ -1160,7 +1161,7 @@ st.markdown("""
     letter-spacing: 0.5px;
     margin-bottom: 0.7rem;
 }
-/* Add the pill badge styling to match Bootstrap pills */
+/* Add the pill badge styling for lead status */
 .lead-pill {
     display: inline-block;
     padding: 0.35em 1.2em;
