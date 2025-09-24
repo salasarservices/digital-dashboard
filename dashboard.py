@@ -1086,9 +1086,10 @@ if leads:
     if "Date" in df.columns:
         df["MonYY"] = df["Date"].apply(date_to_mon_yy)
         df["DateTS"] = pd.to_datetime(df["Date"], errors="coerce")
-        months = df["MonYY"].fillna("").astype(str).unique()
-        months = [m for m in months if m.strip() != ""]
-        months.sort()
+        # --- Ensure months are ordered: July, August, September
+        df["MonOrder"] = pd.Categorical(df["MonYY"], categories=["Jul 25", "Aug 25", "Sep 25"], ordered=True)
+        df = df.sort_values(["MonOrder", "DateTS"], ascending=[True, True])
+        months = ["Jul 25", "Aug 25", "Sep 25"]  # Fixed order for coloring
         month_to_color = {m: get_month_color(m) for m in months}
     else:
         df["MonYY"] = ""
@@ -1241,20 +1242,23 @@ st.markdown(f"""
 st.markdown("### Leads Data")
 
 if not df.empty:
-    # --- Sort by Date (descending), then by MonYY (ascending)
-    df = df.sort_values(["DateTS", "MonYY"], ascending=[False, True])
+    # --- Remove "Number" column if present
+    if "Number" in df.columns:
+        df.drop(columns=["Number"], inplace=True)
 
-    # --- Add Serial No. column (starts at 1, after Date column)
+    # --- Add Serial No. column (starts at 1, after Month column)
     df = df.reset_index(drop=True)
-    df.insert(2, "Serial No.", np.arange(1, len(df) + 1))
+    if "Serial No." in df.columns:
+        df.drop(columns=["Serial No."], inplace=True)
+    df.insert(1, "Serial No.", np.arange(1, len(df) + 1))
 
-    # Prepare columns for display
+    # Prepare columns for display in desired order
     display_cols = []
     if "MonYY" in df.columns:
         display_cols.append("MonYY")
     if "Serial No." in df.columns:
         display_cols.append("Serial No.")
-    main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Serial No.", "Lead Status Pill", "Lead Status Clean", "Brokerage Received", "DateTS")]
+    main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Serial No.", "Lead Status Pill", "Lead Status Clean", "Brokerage Received", "DateTS", "MonOrder")]
     display_cols.extend(main_cols)
     if "Lead Status Pill" in df.columns and "Brokerage Received" in df.columns:
         if "Brokerage Received" not in display_cols:
