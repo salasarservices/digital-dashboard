@@ -1038,33 +1038,23 @@ def get_month_color(month_label):
 
 def lead_status_pill(status):
     status_clean = str(status).strip()
-    pill_styles = {
-        "Interested":   {"bg": "#E9CB35", "color": "#262626"},
-        "Closed":       {"bg": "#8CEB33", "color": "#262626"},
-        "Not Interested": {"bg": "#EA3D34", "color": "#fff"},
+    # Use only the color for the font and make it bold, no pill background
+    color_styles = {
+        "Interested":   "#E9CB35",
+        "Closed":       "#8CEB33",
+        "Not Interested": "#EA3D34",
         # Fallback for other statuses
-        "In Progress": {"bg": "#dee2e6", "color": "#262626"},
-        "New":         {"bg": "#dee2e6", "color": "#262626"},
-        "":            {"bg": "#dee2e6", "color": "#262626"},
+        "In Progress": "#5c5c5c",
+        "New":         "#5c5c5c",
+        "":            "#5c5c5c",
     }
-    style = pill_styles.get(status_clean, {"bg": "#dee2e6", "color": "#262626"})
-    return (f"<span class='lead-pill' style='"
-            f"display:inline-block;"
-            f"padding:0.35em 1.2em;"
+    color = color_styles.get(status_clean, "#5c5c5c")
+    return (f"<span style='"
+            f"color:{color};"
+            f"font-weight:700;"
             f"font-size:1em;"
-            f"font-weight:600;"
-            f"border-radius:999px;"
-            f"line-height:1.1;"
-            f"border:none;"
-            f"margin:2px 0;"
-            f"vertical-align:middle;"
-            f"box-shadow:none;"
-            f"text-align:center;"
             f"letter-spacing:0.1em;"
-            f"background:{style['bg']};"
-            f"color:{style['color']};"
-            f"'>"
-            f"{status_clean if status_clean else 'N/A'}</span>")
+            f"'>{status_clean if status_clean else 'N/A'}</span>")
 
 def format_brokerage_circle_value(val):
     if val >= 10000000:
