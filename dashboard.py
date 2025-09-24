@@ -1082,14 +1082,17 @@ st.markdown("## Leads Dashboard")
 leads = get_leads_from_mongodb()
 if leads:
     df = pd.DataFrame(leads)
+    # --- Date conversion and month label
     if "Date" in df.columns:
         df["MonYY"] = df["Date"].apply(date_to_mon_yy)
+        df["DateTS"] = pd.to_datetime(df["Date"], errors="coerce")
         months = df["MonYY"].fillna("").astype(str).unique()
         months = [m for m in months if m.strip() != ""]
         months.sort()
         month_to_color = {m: get_month_color(m) for m in months}
     else:
         df["MonYY"] = ""
+        df["DateTS"] = pd.NaT
         month_to_color = {}
     if "Brokerage Received" in df.columns:
         df["Brokerage Received"] = pd.to_numeric(df["Brokerage Received"], errors="coerce").fillna(0)
@@ -1238,11 +1241,20 @@ st.markdown(f"""
 st.markdown("### Leads Data")
 
 if not df.empty:
-    # Prepare columns for display: MonYY, main cols..., Lead Status Pill (before Brokerage Received), Brokerage Received
+    # --- Sort by Date (descending), then by MonYY (ascending)
+    df = df.sort_values(["DateTS", "MonYY"], ascending=[False, True])
+
+    # --- Add Serial No. column (starts at 1, after Date column)
+    df = df.reset_index(drop=True)
+    df.insert(2, "Serial No.", np.arange(1, len(df) + 1))
+
+    # Prepare columns for display
     display_cols = []
     if "MonYY" in df.columns:
         display_cols.append("MonYY")
-    main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Lead Status Pill", "Lead Status Clean", "Brokerage Received")]
+    if "Serial No." in df.columns:
+        display_cols.append("Serial No.")
+    main_cols = [col for col in df.columns if col not in ("Date", "MonYY", "Serial No.", "Lead Status Pill", "Lead Status Clean", "Brokerage Received", "DateTS")]
     display_cols.extend(main_cols)
     if "Lead Status Pill" in df.columns and "Brokerage Received" in df.columns:
         if "Brokerage Received" not in display_cols:
@@ -1262,6 +1274,8 @@ if not df.empty:
         for h in headers:
             if h == "MonYY":
                 html += f'<th style="min-width:54px;">Month</th>'
+            elif h == "Serial No.":
+                html += f'<th>Serial No.</th>'
             elif h == "Lead Status Pill":
                 html += f'<th>Lead Status</th>'
             elif h == "Brokerage Received":
@@ -1277,6 +1291,8 @@ if not df.empty:
                     month = str(cell).strip()
                     bgcolor = f'background-color: {month_to_color.get(month, "#fafafa")}; font-weight: bold;'
                     html += f'<td style="{bgcolor}; text-align:center;">{cell}</td>'
+                elif h == "Serial No.":
+                    html += f'<td style="text-align:center;">{cell}</td>'
                 elif h == "Lead Status Pill":
                     html += f'<td style="text-align:center;">{cell}</td>'
                 elif h == "Brokerage Received":
