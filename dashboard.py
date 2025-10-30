@@ -158,12 +158,12 @@ st.markdown("""
     box-shadow: 0 8px 24px rgba(44,68,141,0.15), 0 2px 8px rgba(0,0,0,0.07);
 }
 
-.animated-circle-value { font-family: 'Fira Code', monospace !important; font-size: 0.8em; font-weight: 500; padding: 0.5em 0.6em; background: transparent; border-radius: 0.7em; width: auto; display: inline-block; letter-spacing: 0.02em; }
+.animated-circle-value { font-family: 'Fira Code', monospace !important; font-size: 0.8em; font-weight: 500; padding: 0.5em 0.6em; background: transparent; border-radius: 0.7em; width: auto; display: inline-block; }
 .section-header { font-weight: 700 !important; font-size: 1.7em !important; margin-top: 0.4em; margin-bottom: 0.4em; color: #2d448d; }
 .styled-table th { font-weight: 500 !important; }
 .styled-table td { font-weight: 400 !important; }
 .tooltip .tooltiptext { font-size: 0.80em; font-weight: 300 !important; line-height: 1.4; }
-.tooltip .questionmark { font-weight: 500 !important; font-size: 0.72em; background: #e3e8f0; color: #2d448d; border-radius: 50%; padding: 0 3px; margin-left: 4px; border: 1px solid #d1d5db; box-shadow: 0 1.5px 3px rgba(44,44,44,0.08); display: inline-block; vertical-align: super; line-height: 1em; }
+.tooltip .questionmark { font-weight: 500 !important; font-size: 0.72em; background: #e3e8f0; color: #2d448d; border-radius: 50%; padding: 0 3px; margin-left: 4px; border: 1px solid #d1d5db; box-shadow: 0 1px 0 rgba(0,0,0,0.03); }
 .styled-table { border-collapse: collapse; width: 100%; border-radius: 5px 5px 0 0; overflow: hidden; }
 .styled-table thead tr { background-color: #2d448d; color: #ffffff; text-transform: uppercase; border-bottom: 4px solid #459fda; }
 .styled-table th { color: #ffffff; text-transform: uppercase; text-align: center; }
@@ -172,7 +172,7 @@ st.markdown("""
 .styled-table tbody tr:nth-of-type(odd) { background-color: #ffffff; }
 .styled-table tbody tr:hover { background-color: #a6ce39 !important; }
 .tooltip { display: inline-block; position: relative; cursor: pointer; vertical-align: super; }
-.tooltip .tooltiptext { visibility: hidden; width: 240px; background-color: #222; color: #fff; text-align: left; border-radius: 6px; padding: 8px 10px; position: absolute; z-index: 10; bottom: 120%; left: 50%; margin-left: -120px; opacity: 0; transition: opacity 0.2s; }
+.tooltip .tooltiptext { visibility: hidden; width: 240px; background-color: #222; color: #fff; text-align: left; border-radius: 6px; padding: 8px 10px; position: absolute; z-index: 10; bottom: 120%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.15s; }
 .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
 
 .fb-section-header {
@@ -262,34 +262,8 @@ st.markdown("""
 def pct_change(current, previous):
     return 0 if previous == 0 else (current - previous) / previous * 100
 
-def get_month_options():
-    months, today, d = [], date.today(), date(2025,1,1)
-    while d <= today:
-        months.append(d)
-        d += relativedelta(months=1)
-    return [m.strftime('%B %Y') for m in months]
-
-def get_month_range(sel):
-    start = datetime.strptime(sel, '%B %Y').date().replace(day=1)
-    end = start + relativedelta(months=1) - timedelta(days=1)
-    prev_end = start - timedelta(days=1)
-    prev_start = prev_end.replace(day=1)
-    return start, end, prev_start, prev_end
-
 def format_month_year(d):
     return d.strftime('%B %Y')
-
-@st.cache_resource
-def get_credentials():
-    sa = st.secrets['gcp']['service_account']
-    info = json.loads(sa)
-    pk = info.get('private_key', '').replace('\\n', '\n')
-    if not pk.endswith('\n'):
-        pk += '\n'
-    info['private_key'] = pk
-    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-    creds.refresh(GAuthRequest())
-    return creds
 
 @st.cache_data(ttl=3600)
 def get_total_users(pid, sd, ed):
@@ -353,23 +327,6 @@ def get_active_users_by_country(pid, sd, ed, top_n=5):
         return []
 
 @st.cache_data(ttl=3600)
-def get_gsc_site_stats(site, sd, ed):
-    try:
-        body = {
-            'startDate': sd.strftime('%Y-%m-%d'),
-            'endDate': ed.strftime('%Y-%m-%d'),
-            'rowLimit': 1
-        }
-        resp = sc.searchanalytics().query(siteUrl=site, body=body).execute()
-        if not resp.get('rows'):
-            return 0, 0, 0.0
-        row = resp['rows'][0]
-        return row.get('clicks', 0), row.get('impressions', 0), row.get('ctr', 0.0)
-    except Exception as e:
-        st.error(f"Error fetching GSC site stats: {e}")
-        return 0, 0, 0.0
-
-@st.cache_data(ttl=3600)
 def get_new_returning_users(pid, sd, ed):
     try:
         req = {
@@ -402,6 +359,7 @@ def country_name_to_code(name):
             if name.lower() in country.name.lower():
                 return country.alpha_2.lower()
         return None
+
 # =========================
 # SIDEBAR & FILTERS
 # =========================
@@ -410,7 +368,8 @@ with st.sidebar:
     st.title('Report Filters')
 
     def get_month_options():
-        months, today, d = [], date.today(), date(2025,1,1)
+        months, today, d = [], date.today(), date(today.year - 2, 1, 1)
+        # create last 36 months (or adapt as needed)
         while d <= today:
             months.append(d)
             d += relativedelta(months=1)
@@ -510,9 +469,8 @@ SCOPES = [
 PROPERTY_ID = '356205245'
 SC_SITE_URL = 'https://www.salasarservices.com/'
 
-# --- Loader for credentials setup ---
-credentials_placeholder = st.empty()
-show_loader(credentials_placeholder, "Authenticating and initializing analytics APIs...")
+# Single cached credentials loader (keeps credentials cached while allowing refresh)
+@st.cache_resource
 def get_credentials():
     sa = st.secrets['gcp']['service_account']
     info = json.loads(sa)
@@ -523,6 +481,10 @@ def get_credentials():
     creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     creds.refresh(GAuthRequest())
     return creds
+
+# --- Loader for credentials setup ---
+credentials_placeholder = st.empty()
+show_loader(credentials_placeholder, "Authenticating and initializing analytics APIs...")
 creds = get_credentials()
 ga4 = BetaAnalyticsDataClient(credentials=creds)
 sc = build('searchconsole', 'v1', credentials=creds)
@@ -532,9 +494,8 @@ credentials_placeholder.empty()
 metrics_placeholder = st.empty()
 show_loader(metrics_placeholder, "Fetching dashboard data...")
 # (All your data metrics and calculations here.)
-def pct_change(current, previous):
-    return 0 if previous == 0 else (current - previous) / previous * 100
 
+@st.cache_data(ttl=3600)
 def get_gsc_site_stats(site, sd, ed):
     try:
         body = {
@@ -590,8 +551,6 @@ metrics_placeholder.empty()
 # [Leads Section]
 # [Facebook Analytics Circles]
 # (All as in your last working code.)
-
-# The loader will show while all heavy data fetching happens, and disappear before UI rendering.
 
 # =========================
 # DATA COLLECTION FOR PDF
@@ -694,7 +653,7 @@ returning_new_tooltips = [
 ]
 
 # =========================
-# PDF GENERATION LOGIC (unchanged)
+# PDF GENERATION LOGIC (unchanged except for request timeout)
 # =========================
 def generate_pdf_report():
     pdf = FPDF()
@@ -846,9 +805,8 @@ for i, col in enumerate(cols_perf):
         pct_icon_colored = (
             f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
         )
-        # UPDATED LINE BELOW
         pct_delta_text = (
-            f"{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span>"
+            f"{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note' style='color:#666;font-size:0.92em;margin-left:6px;'>(vs. Previous)</span>"
         )
         st.markdown(
             f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_delta_text}</div>",
@@ -929,7 +887,7 @@ for i, col in enumerate(cols):
             f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
         )
         st.markdown(
-            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(deltas[i]):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
+            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(deltas[i]):.2f}%</span></div>",
             unsafe_allow_html=True
         )
 
@@ -973,7 +931,7 @@ for i, col in enumerate(cols_ret):
             f"<span style='color:{pct_color}; font-size:1.05em; vertical-align:middle;'>{pct_icon}</span>"
         )
         st.markdown(
-            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span> <span class='animated-circle-delta-note'>(vs. Previous Month)</span></div>",
+            f"<div style='text-align:center; font-size:18px; margin-top:0.2em; color:{pct_color}; font-weight:500'>{pct_icon_colored} <span class='animated-circle-value' style='color:{pct_color}; font-size:1.1em;'>{abs(entry['delta']):.2f}%</span></div>",
             unsafe_allow_html=True
         )
         
@@ -1078,9 +1036,10 @@ if leads:
         df["MonYY"] = df["Date"].apply(date_to_mon_yy)
         df["DateTS"] = pd.to_datetime(df["Date"], errors="coerce")
         # --- Ensure months are ordered: July, August, September
-        df["MonOrder"] = pd.Categorical(df["MonYY"], categories=["Jul 25", "Aug 25", "Sep 25"], ordered=True)
+        # NOTE: keep ordering flexible — this was fixed earlier; keep as-is for now
+        df["MonOrder"] = pd.Categorical(df["MonYY"])
         df = df.sort_values(["MonOrder", "DateTS"], ascending=[True, True])
-        months = ["Jul 25", "Aug 25", "Sep 25"]  # Fixed order for coloring
+        months = sorted(df["MonYY"].dropna().unique().tolist())
         month_to_color = {m: get_month_color(m) for m in months}
     else:
         df["MonYY"] = ""
@@ -1380,8 +1339,8 @@ def render_linkedin_analytics():
         st.error("No records found in lnkd-extras collection.")
         return
 
-    months_analytics = set(df_analytics.get("MonthStr", pd.Series([])))
-    months_extras = set(df_extras.get("MonthStr", pd.Series([])))
+    months_analytics = set(df_analytics.get("MonthStr", pd.Series(dtype=object)))
+    months_extras = set(df_extras.get("MonthStr", pd.Series(dtype=object)))
     month_options = sorted(
         set(get_last_12_month_options()) | months_analytics | months_extras,
         key=lambda d: datetime.strptime(d, "%B %Y"),
@@ -1639,7 +1598,7 @@ def get_total_metric_value(metric, since, until):
         "access_token": ACCESS_TOKEN
     }
     try:
-        resp = requests.get(url, params=params).json()
+        resp = requests.get(url, params=params, timeout=10).json()
         if (
             "data" in resp and len(resp["data"]) > 0
             and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
@@ -1658,7 +1617,7 @@ def get_lifetime_total_followers():
         "access_token": ACCESS_TOKEN
     }
     try:
-        resp = requests.get(url, params=params).json()
+        resp = requests.get(url, params=params, timeout=10).json()
         if (
             "data" in resp and len(resp["data"]) > 0
             and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
@@ -1679,7 +1638,7 @@ def get_previous_lifetime_total_followers(prev_period_end):
         "access_token": ACCESS_TOKEN
     }
     try:
-        resp = requests.get(url, params=params).json()
+        resp = requests.get(url, params=params, timeout=10).json()
         if (
             "data" in resp and len(resp["data"]) > 0
             and "values" in resp["data"][0] and len(resp["data"][0]["values"]) > 0
@@ -1703,7 +1662,7 @@ def get_posts(since, until):
     posts = []
     try:
         while url:
-            resp = requests.get(url, params=params).json()
+            resp = requests.get(url, params=params, timeout=10).json()
             posts.extend(resp.get('data', []))
             paging = resp.get('paging', {})
             url = paging.get('next') if 'next' in paging else None
@@ -1716,7 +1675,7 @@ def get_posts(since, until):
 def get_post_likes(post_id, access_token):
     url = f"https://graph.facebook.com/v19.0/{post_id}?fields=likes.summary(true)&access_token={access_token}"
     try:
-        resp = requests.get(url).json()
+        resp = requests.get(url, timeout=10).json()
         return resp.get('likes', {}).get('summary', {}).get('total_count', 0)
     except Exception as e:
         print(f"[ERROR] Exception in get_post_likes: {e}")
@@ -1725,7 +1684,7 @@ def get_post_likes(post_id, access_token):
 def get_post_comments(post_id, access_token):
     url = f"https://graph.facebook.com/v19.0/{post_id}/comments?summary=true&access_token={access_token}"
     try:
-        resp = requests.get(url).json()
+        resp = requests.get(url, timeout=10).json()
         return resp.get('summary', {}).get('total_count', 0)
     except Exception as e:
         print(f"[ERROR] Exception in get_post_comments: {e}")
@@ -1964,7 +1923,7 @@ def get_access_token(client_id, client_secret, refresh_token):
         "refresh_token": refresh_token,
         "grant_type": "refresh_token"
     }
-    response = requests.post(url, data=data)
+    response = requests.post(url, data=data, timeout=10)
     if response.status_code != 200:
         st.error(f"OAuth error: {response.text}")
         st.stop()
@@ -2003,21 +1962,21 @@ def get_yt_analytics_summary(start_date, end_date):
         "metrics": "views,estimatedMinutesWatched,subscribersGained,subscribersLost",
         "dimensions": "",
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params, timeout=10).json()
     if "rows" not in resp:
         return {"views": 0, "watch_time": 0, "subs_gained": 0, "subs_lost": 0}
     row = resp["rows"][0]
-    col_map = {c["name"]: i for i, c in enumerate(resp["columnHeaders"])}
+    col_map = {c["name"]: i for i, c in enumerate(resp.get("columnHeaders", []))}
     return {
-        "views": int(row[col_map["views"]]),
-        "watch_time": int(row[col_map["estimatedMinutesWatched"]]),
-        "subs_gained": int(row[col_map["subscribersGained"]]),
-        "subs_lost": int(row[col_map["subscribersLost"]]),
+        "views": int(row[col_map["views"]]) if "views" in col_map else 0,
+        "watch_time": int(row[col_map["estimatedMinutesWatched"]]) if "estimatedMinutesWatched" in col_map else 0,
+        "subs_gained": int(row[col_map["subscribersGained"]]) if "subscribersGained" in col_map else 0,
+        "subs_lost": int(row[col_map["subscribersLost"]]) if "subscribersLost" in col_map else 0,
     }
 
 def get_total_subscribers():
     url = f"https://www.googleapis.com/youtube/v3/channels?part=statistics&id={CHANNEL_ID}&key={YOUTUBE_API_KEY}"
-    resp = requests.get(url).json()
+    resp = requests.get(url, timeout=10).json()
     if "items" in resp and len(resp["items"]) > 0:
         return int(resp["items"][0]["statistics"].get("subscriberCount", 0))
     return 0
@@ -2130,7 +2089,7 @@ for i, col in enumerate(overview_cols):
                 {metric["label"]}
             </div>
             <div style='margin:0 auto; display:flex; align-items:center; justify-content:center; height:110px;'>
-                <div class="yt-metric-circle" style='background:{metric["color"]}; border-radius:50%; width:100px; height:100px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.12);'>
+                <div class="yt-metric-circle" style='background:{metric["color"]}; border-radius:50%; width:100px; height:100px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 12px rgba(0,0,0,0.05);'>
                     <span style='color:{metric["circle_color"]}; font-size:2em; font-family: Fira Code, monospace; font-weight:bold;'>{metric["value"]}</span>
                 </div>
             </div>
@@ -2143,12 +2102,12 @@ for i, col in enumerate(overview_cols):
 
 def get_top_videos(start_date, end_date, max_results=5):
     video_url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={CHANNEL_ID}&part=id&order=date&type=video&maxResults=50"
-    resp = requests.get(video_url).json()
+    resp = requests.get(video_url, timeout=10).json()
     video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
     if not video_ids:
         return pd.DataFrame()
     stats_url = f"https://www.googleapis.com/youtube/v3/videos?key={YOUTUBE_API_KEY}&id={','.join(video_ids)}&part=snippet,statistics"
-    stats_resp = requests.get(stats_url).json()
+    stats_resp = requests.get(stats_url, timeout=10).json()
     data = []
     for item in stats_resp.get("items", []):
         published = item["snippet"]["publishedAt"][:10]
@@ -2178,7 +2137,7 @@ def get_top_videos(start_date, end_date, max_results=5):
         "dimensions": "video",
         "filters": f"video=={','.join(ids)}"
     }
-    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params).json()
+    resp = requests.get(endpoint, headers=get_auth_headers(YT_ACCESS_TOKEN), params=params, timeout=10).json()
     if "rows" not in resp:
         df["watch_time"] = 0
     else:
@@ -2217,4 +2176,3 @@ else:
 st.caption("All YouTube metrics are updated live from YouTube Data & Analytics APIs. Credentials are loaded securely from Streamlit secrets.")
 
 # END OF DASHBOARD
-
