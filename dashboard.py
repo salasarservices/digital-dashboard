@@ -169,40 +169,94 @@ _PASSWORD = st.secrets["login"]["password"]
 
 
 def login():
-    # Vertical spacer
-    st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
+    # ── Dark branded background only for the login page ───────────────────
+    st.markdown(
+        """<style>
+        .stApp, [data-testid="stAppViewContainer"] {
+            background: linear-gradient(145deg, #071b2a 0%, #0f2d44 45%, #0d3d5c 100%) !important;
+        }
+        /* tighten form spacing on login */
+        [data-testid="stForm"] {
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+        /* accent the Sign-In button */
+        [data-testid="stForm"] button[kind="primaryFormSubmit"],
+        [data-testid="stForm"] button[type="submit"] {
+            background: linear-gradient(90deg, #1b8fc5, #5ca832) !important;
+            color: #ffffff !important;
+            border: none !important;
+            font-weight: 600 !important;
+            letter-spacing: .04em !important;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
 
-    # Three-column layout: blank | card | blank
-    _, card_col, _ = st.columns([1.6, 1, 1.6])
+    st.markdown("<div style='height:7vh'></div>", unsafe_allow_html=True)
+
+    # Three-column layout — narrow centred card
+    _, card_col, _ = st.columns([1.8, 1, 1.8])
 
     with card_col:
-        # Logo + heading above the form card
+        # ── Logo + tagline on dark bg ───────────────────────────────────
         st.markdown(
-            f"""<div style="text-align:center;margin-bottom:24px;">
-                  <img src="{LOGO_URL}" style="height:54px;margin-bottom:14px;display:block;margin-left:auto;margin-right:auto;">
-                  <div style="font-size:1.35em;font-weight:700;color:#0f2d44;letter-spacing:-.01em">Dashboard Login</div>
-                  <div style="font-size:.82em;color:#64748b;margin-top:5px">Salasar Services · Digital Marketing</div>
+            f"""<div style="text-align:center;margin-bottom:30px;">
+                  <img src="{LOGO_URL}"
+                       style="height:60px;margin-bottom:18px;display:block;
+                              margin-left:auto;margin-right:auto;
+                              filter:brightness(1.15) drop-shadow(0 2px 8px rgba(27,143,197,.35));">
+                  <div style="font-size:1.4em;font-weight:700;color:#ffffff;
+                               letter-spacing:-.01em;line-height:1.2">
+                    Dashboard Login
+                  </div>
+                  <div style="font-size:.80em;color:#90bdd8;margin-top:6px;
+                               letter-spacing:.04em;text-transform:uppercase">
+                    Salasar Services &nbsp;·&nbsp; Digital Marketing
+                  </div>
                 </div>""",
             unsafe_allow_html=True,
         )
 
-        # Card wrapper — gives the form a white elevated box
+        # ── Card ────────────────────────────────────────────────────────
         st.markdown(
-            """<div style="background:#ffffff;border-radius:16px;padding:28px 28px 20px;
-                          box-shadow:0 4px 24px rgba(15,45,68,.10),0 1px 4px rgba(0,0,0,.05);">""",
+            """<div style="
+                background: #ffffff;
+                border-radius: 16px;
+                padding: 28px 28px 22px;
+                box-shadow: 0 24px 64px rgba(0,0,0,.45), 0 4px 16px rgba(0,0,0,.25);
+                border-top: 4px solid #1b8fc5;">""",
             unsafe_allow_html=True,
         )
         with st.form("login_form"):
-            username = st.text_input("Username", placeholder="Enter username")
-            password = st.text_input("Password", type="password", placeholder="Enter password")
-            submitted = st.form_submit_button("Sign In →", use_container_width=True)
+            st.markdown(
+                "<div style='font-size:.72em;font-weight:700;text-transform:uppercase;"
+                "letter-spacing:.08em;color:#0f2d44;margin-bottom:14px'>"
+                "Sign in to continue</div>",
+                unsafe_allow_html=True,
+            )
+            username = st.text_input("Username", placeholder="Enter username",
+                                     label_visibility="collapsed")
+            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+            password = st.text_input("Password", type="password",
+                                     placeholder="Enter password",
+                                     label_visibility="collapsed")
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Sign In  →", use_container_width=True)
             if submitted:
                 if username == _USERNAME and password == _PASSWORD:
                     st.session_state["logged_in"] = True
                     st.rerun()
                 else:
-                    st.error("Invalid credentials. Please try again.")
+                    st.error("Invalid credentials.")
         st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown(
+            "<div style='text-align:center;margin-top:18px;"
+            "font-size:.74em;color:#4a6b83'>© 2026 Salasar Services</div>",
+            unsafe_allow_html=True,
+        )
 
 
 if "logged_in" not in st.session_state:
@@ -1151,6 +1205,29 @@ def _generate_pdf():
     LT   = (248, 250, 252) # light row fill
     W    = 190             # usable page width
 
+    def _safe(text):
+        """Sanitise any string for fpdf 1.x latin-1 encoding.
+        Replaces every character outside latin-1 (e.g. em-dash U+2014,
+        smart quotes, bullet chars) with the nearest ASCII equivalent or '?'.
+        """
+        replacements = {
+            "\u2014": "-",  # em dash
+            "\u2013": "-",  # en dash
+            "\u2018": "'",  # left single quote
+            "\u2019": "'",  # right single quote
+            "\u201c": '"',  # left double quote
+            "\u201d": '"',  # right double quote
+            "\u2026": "...",# ellipsis
+            "\u00b7": ".",  # middle dot
+            "\u2022": "*",  # bullet
+            "\u00a0": " ",  # non-breaking space
+        }
+        s = str(text)
+        for src, dst in replacements.items():
+            s = s.replace(src, dst)
+        # Catch any remaining non-latin-1 characters
+        return s.encode("latin-1", errors="replace").decode("latin-1")
+
     class PDF(FPDF):
         def header(self): pass  # custom header via draw_page_header
         def footer(self):
@@ -1158,7 +1235,7 @@ def _generate_pdf():
             self.set_font("Arial", "I", 8)
             self.set_text_color(160, 160, 160)
             self.cell(0, 8,
-                f"Salasar Services · Digital Marketing Report · {date.today().strftime('%d %B %Y')}   |   Page {self.page_no()}",
+                _safe(f"Salasar Services - Digital Marketing Report - {date.today().strftime('%d %B %Y')}   |   Page {self.page_no()}"),
                 0, 0, "C")
 
     def draw_page_header(pdf, logo_path):
@@ -1173,12 +1250,12 @@ def _generate_pdf():
         pdf.set_xy(62, 8)
         pdf.set_font("Arial", "B", 14)
         pdf.set_text_color(255, 255, 255)
-        pdf.cell(0, 9, "Digital Marketing Performance Report", ln=0)
+        pdf.cell(0, 9, _safe("Digital Marketing Performance Report"), ln=0)
         pdf.set_xy(62, 16)
         pdf.set_font("Arial", "", 9)
         pdf.set_text_color(160, 210, 240)
         pdf.cell(0, 6,
-            f"Period: {format_month_year(sd)}   |   Previous: {format_month_year(psd)}   |   Salasar Services",
+            _safe(f"Period: {format_month_year(sd)}  |  Previous: {format_month_year(psd)}  |  Salasar Services"),
             ln=1)
         pdf.ln(6)
 
@@ -1187,7 +1264,7 @@ def _generate_pdf():
         pdf.set_fill_color(r, g, b)
         pdf.set_text_color(255, 255, 255)
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(W, 9, f"  {title}", 0, 1, "L", fill=True)
+        pdf.cell(W, 9, _safe(f"  {title}"), 0, 1, "L", fill=True)
         pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
 
@@ -1207,12 +1284,12 @@ def _generate_pdf():
             pdf.set_xy(x + 2, y_start + 2)
             pdf.set_font("Arial", "B", 13)
             pdf.set_text_color(*NAV)
-            pdf.cell(box_w - 4, 7, str(value), 0, 0, "C")
+            pdf.cell(box_w - 4, 7, _safe(value), 0, 0, "C")
             # label
             pdf.set_xy(x + 2, y_start + 9)
             pdf.set_font("Arial", "", 7)
             pdf.set_text_color(100, 116, 139)
-            pdf.cell(box_w - 4, 5, label, 0, 0, "C")
+            pdf.cell(box_w - 4, 5, _safe(label), 0, 0, "C")
             # delta badge
             if delta is not None:
                 try:
@@ -1226,7 +1303,7 @@ def _generate_pdf():
                 pdf.set_xy(x + 2, y_start + 14)
                 pdf.set_font("Arial", "", 6.5)
                 pdf.set_text_color(*dc)
-                pdf.cell(box_w - 4, 5, dtext, 0, 0, "C")
+                pdf.cell(box_w - 4, 5, _safe(dtext), 0, 0, "C")
         pdf.set_xy(x_start, y_start + box_h + 3)
 
     def table(pdf, headers, rows, col_widths, alt_fill=(248, 250, 252)):
@@ -1235,7 +1312,7 @@ def _generate_pdf():
         pdf.set_fill_color(*NAV)
         pdf.set_text_color(255, 255, 255)
         for h, w in zip(headers, col_widths):
-            pdf.cell(w, 7, h, 0, 0, "L", fill=True)
+            pdf.cell(w, 7, _safe(h), 0, 0, "L", fill=True)
         pdf.ln()
         pdf.set_font("Arial", "", 8)
         for ri, row in enumerate(rows):
@@ -1243,7 +1320,7 @@ def _generate_pdf():
             pdf.set_fill_color(*alt_fill)
             pdf.set_text_color(30, 41, 59)
             for val, w in zip(row, col_widths):
-                pdf.cell(w, 6, str(val)[:60], 0, 0, "L", fill=fill)
+                pdf.cell(w, 6, _safe(str(val))[:60], 0, 0, "L", fill=fill)
             pdf.ln()
         pdf.ln(3)
 
@@ -1291,7 +1368,7 @@ def _generate_pdf():
     # Top Content table
     pdf.set_font("Arial", "B", 8.5)
     pdf.set_text_color(*NAV)
-    pdf.cell(0, 6, "Top Content by Clicks", ln=1)
+    pdf.cell(0, 6, _safe("Top Content by Clicks"), ln=1)
     pdf.ln(1)
     table(pdf,
         ["Page URL", "Clicks", "Change (%)"],
@@ -1302,29 +1379,29 @@ def _generate_pdf():
     check_page_break(pdf)
     y_before = pdf.get_y()
     pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
-    pdf.cell(90, 6, "Active Users by Country (Top 5)", ln=0)
+    pdf.cell(90, 6, _safe("Active Users by Country (Top 5)"), ln=0)
     pdf.cell(10, 6, "", ln=0)
-    pdf.cell(90, 6, "Traffic by Channel", ln=1)
+    pdf.cell(90, 6, _safe("Traffic by Channel"), ln=1)
     pdf.ln(1)
     # left column — country
     x_left = pdf.get_x()
     y_now  = pdf.get_y()
     pdf.set_font("Arial", "B", 8); pdf.set_fill_color(*NAV); pdf.set_text_color(255, 255, 255)
-    pdf.cell(65, 7, "Country", 0, 0, "L", fill=True)
-    pdf.cell(25, 7, "Users",   0, 0, "R", fill=True)
+    pdf.cell(65, 7, "Country",  0, 0, "L", fill=True)
+    pdf.cell(25, 7, "Users",    0, 0, "R", fill=True)
     pdf.ln()
     pdf.set_font("Arial", "", 8)
     for ri, c in enumerate(country_data):
         fill = ri % 2 == 1
         pdf.set_fill_color(248, 250, 252); pdf.set_text_color(30, 41, 59)
-        pdf.cell(65, 6, c["country"][:35], 0, 0, "L", fill=fill)
-        pdf.cell(25, 6, f"{c['activeUsers']:,}", 0, 0, "R", fill=fill)
+        pdf.cell(65, 6, _safe(c["country"])[:35], 0, 0, "L", fill=fill)
+        pdf.cell(25, 6, _safe(f"{c['activeUsers']:,}"), 0, 0, "R", fill=fill)
         pdf.ln()
     y_after_country = pdf.get_y()
     # right column — channel
     pdf.set_xy(105, y_now)
     pdf.set_font("Arial", "B", 8); pdf.set_fill_color(*NAV); pdf.set_text_color(255, 255, 255)
-    pdf.cell(60, 7, "Channel", 0, 0, "L", fill=True)
+    pdf.cell(60, 7, "Channel",  0, 0, "L", fill=True)
     pdf.cell(25, 7, "Sessions", 0, 0, "R", fill=True)
     pdf.ln()
     pdf.set_font("Arial", "", 8)
@@ -1332,15 +1409,15 @@ def _generate_pdf():
         fill = ri % 2 == 1
         pdf.set_xy(105, pdf.get_y())
         pdf.set_fill_color(248, 250, 252); pdf.set_text_color(30, 41, 59)
-        pdf.cell(60, 6, str(row.iloc[0])[:30], 0, 0, "L", fill=fill)
-        pdf.cell(25, 6, f"{int(row.iloc[1]):,}", 0, 0, "R", fill=fill)
+        pdf.cell(60, 6, _safe(str(row.iloc[0]))[:30], 0, 0, "L", fill=fill)
+        pdf.cell(25, 6, _safe(f"{int(row.iloc[1]):,}"), 0, 0, "R", fill=fill)
         pdf.ln()
     pdf.set_y(max(y_after_country, pdf.get_y()) + 3)
 
     # Organic queries table
     check_page_break(pdf)
     pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
-    pdf.cell(0, 6, "Top Organic Search Queries", ln=1); pdf.ln(1)
+    pdf.cell(0, 6, _safe("Top Organic Search Queries"), ln=1); pdf.ln(1)
     table(pdf,
         ["Query", "Clicks"],
         [[row["query"][:90], row["clicks"]] for _, row in sc_df.iterrows()],
@@ -1369,7 +1446,7 @@ def _generate_pdf():
     ])
     if not _top_vids.empty:
         pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
-        pdf.cell(0, 6, f"Top Videos — {sd.strftime('%B %Y')}", ln=1); pdf.ln(1)
+        pdf.cell(0, 6, _safe(f"Top Videos - {sd.strftime('%B %Y')}"), ln=1); pdf.ln(1)
         table(pdf,
             ["Title", "Views", "Watch Time", "Likes"],
             [[row["title"][:55], f"{int(row['views']):,}",
