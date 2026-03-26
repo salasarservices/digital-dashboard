@@ -38,324 +38,11 @@ PROPERTY_ID = "356205245"
 SC_SITE_URL  = "https://www.salasarservices.com/"
 LOGO_URL     = "https://ik.imagekit.io/salasarservices/Salasar-Logo-new.png?updatedAt=1771587668127"
 
-# ═════════════════════════════════════════════════════════════════════════════
-# GLOBAL CSS  — Modern card-based Digital Marketing Dashboard
-# Colour palette derived from the Salasar logo:
-#   Navy   #0f2d44   (dark bg, sidebar, headings)
-#   Green  #5ca832   (brand green — logo "Salasar" text)
-#   Teal   #1b8fc5   (brand teal — logo wave symbol)
-#   Lime   #a8d55c   (soft accent / hover)
-#   BG     #f2f5f8   (page background)
-#   Card   #ffffff
-# ═════════════════════════════════════════════════════════════════════════════
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;600&display=swap');
-
-/* ── Reset & base ── */
-html, body, [class*="css"] {
-  font-family: 'Inter', sans-serif !important;
-}
-
-/* ── Page background ── */
-.stApp {
-  background: #f2f5f8 !important;
-}
-
-/* ── Hide Streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden; }
-
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #0f2d44 0%, #0a1f30 100%) !important;
-  border-right: none !important;
-}
-[data-testid="stSidebar"] * { color: #cfe8f7 !important; }
-[data-testid="stSidebar"] .stButton > button {
-  background: rgba(27,143,197,0.18) !important;
-  border: 1px solid rgba(27,143,197,0.35) !important;
-  color: #cfe8f7 !important;
-  border-radius: 8px !important;
-  font-weight: 500 !important;
-  transition: background .2s, border-color .2s;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(27,143,197,0.38) !important;
-  border-color: #1b8fc5 !important;
-}
-[data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div {
-  background: rgba(255,255,255,0.07) !important;
-  border: 1px solid rgba(255,255,255,0.15) !important;
-  border-radius: 8px !important;
-}
-[data-testid="stSidebar"] label {
-  color: #90bdd8 !important;
-  font-size: .85em !important;
-  font-weight: 500 !important;
-  text-transform: uppercase !important;
-  letter-spacing: .05em !important;
-}
-[data-testid="stSidebar"] hr {
-  border-color: rgba(255,255,255,0.10) !important;
-}
-
-/* ── Top header bar ── */
-.dash-header {
-  background: linear-gradient(135deg, #0f2d44 0%, #0d3d5c 100%);
-  border-radius: 16px;
-  padding: 22px 32px;
-  margin-bottom: 28px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  box-shadow: 0 4px 20px rgba(15,45,68,.18);
-}
-.dash-header img {
-  height: 52px;
-  filter: brightness(1.1);
-}
-.dash-header-text h1 {
-  color: #ffffff !important;
-  font-size: 1.55em !important;
-  font-weight: 700 !important;
-  margin: 0 !important;
-  letter-spacing: -.01em;
-}
-.dash-header-text p {
-  color: #90bdd8 !important;
-  font-size: .88em !important;
-  margin: 4px 0 0 !important;
-}
-
-/* ── Section header ── */
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 32px 0 18px 0;
-}
-.section-header-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15em;
-  flex-shrink: 0;
-}
-.section-header-title {
-  font-size: 1.18em;
-  font-weight: 700;
-  color: #0f2d44;
-  letter-spacing: -.01em;
-}
-.section-header-sub {
-  font-size: .82em;
-  color: #64748b;
-  margin-top: 2px;
-}
-.section-header-line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, #e2e8f0 0%, transparent 100%);
-  margin-left: 8px;
-}
-
-/* ── KPI card ── */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 8px;
-}
-.kpi-card {
-  background: #ffffff;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(15,45,68,.07), 0 1px 3px rgba(0,0,0,.04);
-  transition: transform .18s ease, box-shadow .18s ease;
-  position: relative;
-}
-.kpi-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(15,45,68,.13), 0 2px 6px rgba(0,0,0,.05);
-}
-.kpi-accent {
-  height: 5px;
-  width: 100%;
-}
-.kpi-inner {
-  padding: 18px 20px 16px;
-}
-.kpi-title {
-  font-size: .78em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: #64748b;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.kpi-value {
-  font-size: 2.05em;
-  font-weight: 700;
-  color: #0f2d44;
-  font-family: 'Fira Code', monospace;
-  line-height: 1;
-  margin-bottom: 10px;
-}
-.kpi-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: .78em;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 20px;
-  letter-spacing: .02em;
-}
-.kpi-badge.up   { background: #dcfce7; color: #16a34a; }
-.kpi-badge.down { background: #fee2e2; color: #dc2626; }
-.kpi-badge.flat { background: #f1f5f9; color: #64748b; }
-.kpi-vs {
-  font-size: .74em;
-  color: #94a3b8;
-  margin-left: 4px;
-  font-weight: 400;
-}
-.kpi-tooltip {
-  position: relative;
-  display: inline-block;
-  cursor: help;
-}
-.kpi-tooltip .kpi-tip-text {
-  visibility: hidden;
-  width: 210px;
-  background: #1e293b;
-  color: #e2e8f0;
-  text-align: left;
-  border-radius: 8px;
-  padding: 9px 12px;
-  position: absolute;
-  z-index: 20;
-  bottom: 130%;
-  left: 50%;
-  transform: translateX(-50%);
-  opacity: 0;
-  transition: opacity .2s;
-  font-size: .78em;
-  line-height: 1.5;
-  pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,.18);
-}
-.kpi-tooltip:hover .kpi-tip-text { visibility: visible; opacity: 1; }
-.tip-icon {
-  width: 16px; height: 16px;
-  background: #e2e8f0;
-  color: #64748b;
-  border-radius: 50%;
-  font-size: .68em;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: help;
-  flex-shrink: 0;
-}
-
-/* ── Data tables ── */
-.dash-table {
-  border-collapse: collapse;
-  width: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 10px rgba(15,45,68,.06);
-  font-size: .9em;
-}
-.dash-table thead tr {
-  background: linear-gradient(135deg, #0f2d44, #1a4a6e);
-}
-.dash-table thead th {
-  color: #ffffff !important;
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: .05em !important;
-  padding: 12px 16px !important;
-  font-size: .78em !important;
-  text-align: left !important;
-  border: none !important;
-}
-.dash-table tbody tr:nth-child(even) { background: #f8fafc; }
-.dash-table tbody tr:nth-child(odd)  { background: #ffffff; }
-.dash-table tbody tr:hover           { background: #eff8f0 !important; }
-.dash-table tbody td {
-  padding: 11px 16px !important;
-  color: #1e293b !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-  vertical-align: middle !important;
-}
-.dash-table tbody tr:last-child td { border-bottom: none !important; }
-
-/* ── Platform metric row (LinkedIn / Facebook) ── */
-.platform-metrics-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 16px;
-  margin: 4px 0 20px 0;
-}
-
-/* ── Divider ── */
-.section-divider {
-  border: none;
-  border-top: 1px solid #e2e8f0;
-  margin: 28px 0;
-}
-
-/* ── Period info pill ── */
-.period-pill {
-  background: rgba(27,143,197,0.12);
-  border: 1px solid rgba(27,143,197,0.25);
-  border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
-}
-.period-pill b { color: #1b8fc5; }
-
-/* ── Loading spinner ── */
-.dash-loader {
-  text-align: center;
-  padding: 3em 0;
-}
-.dash-loader-ring {
-  width: 48px; height: 48px;
-  border: 4px solid #e2e8f0;
-  border-top-color: #1b8fc5;
-  border-radius: 50%;
-  animation: spin .8s linear infinite;
-  margin: 0 auto 14px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.dash-loader-text {
-  color: #64748b;
-  font-size: .95em;
-  font-weight: 500;
-}
-
-/* ── Responsive ── */
-@media(max-width: 768px) {
-  .kpi-grid            { grid-template-columns: 1fr 1fr; }
-  .platform-metrics-row { grid-template-columns: 1fr 1fr; }
-  .dash-header         { flex-direction: column; text-align: center; }
-}
-@media(max-width: 480px) {
-  .kpi-grid            { grid-template-columns: 1fr; }
-  .platform-metrics-row { grid-template-columns: 1fr; }
-}
-</style>
-""", unsafe_allow_html=True)
+# ── Load external stylesheet ──────────────────────────────────────────────
+import pathlib
+_css_path = pathlib.Path(__file__).parent / "style.css"
+if _css_path.exists():
+    st.markdown(f"<style>{_css_path.read_text()}</style>", unsafe_allow_html=True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -745,14 +432,6 @@ def _yt_headers(token):
     return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 
-def get_yt_date_ranges():
-    today    = date.today()
-    end_cur  = today
-    start_cur = today - timedelta(days=27)
-    end_prev  = start_cur - timedelta(days=1)
-    start_prev = end_prev - timedelta(days=27)
-    return start_cur, end_cur, start_prev, end_prev
-
 
 @st.cache_data(ttl=3600)
 def get_yt_analytics_summary(channel_id, start_date, end_date, yt_token):
@@ -908,26 +587,49 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    month_options = get_month_options()
-    if "selected_month" not in st.session_state:
-        st.session_state["selected_month"] = month_options[-1]
-
-    sel = st.selectbox(
-        "Select month:",
-        month_options,
-        index=month_options.index(st.session_state["selected_month"]),
+    # ── Date mode toggle ────────────────────────────────────────────────────
+    _date_mode = st.radio(
+        "Date Mode",
+        ["📅 Monthly", "🗓 Custom Range"],
+        horizontal=True,
         label_visibility="collapsed",
+        key="date_mode",
     )
-    if sel != st.session_state["selected_month"]:
-        st.session_state["selected_month"] = sel
 
-    sd, ed, psd, ped = get_month_range(st.session_state["selected_month"])
+    if _date_mode == "📅 Monthly":
+        month_options = get_month_options()
+        if "selected_month" not in st.session_state:
+            st.session_state["selected_month"] = month_options[-1]
+        sel = st.selectbox(
+            "Select month:",
+            month_options,
+            index=month_options.index(st.session_state["selected_month"]),
+            label_visibility="collapsed",
+        )
+        if sel != st.session_state["selected_month"]:
+            st.session_state["selected_month"] = sel
+        sd, ed, psd, ped = get_month_range(st.session_state["selected_month"])
+    else:
+        # ── Custom date range ────────────────────────────────────────────
+        _today = date.today()
+        _def_start = _today.replace(day=1)
+        _cr1, _cr2 = st.columns(2)
+        with _cr1:
+            sd = st.date_input("From", value=_def_start, max_value=_today, key="custom_start")
+        with _cr2:
+            ed = st.date_input("To",   value=_today,     max_value=_today, key="custom_end")
+        if sd > ed:
+            st.error("'From' must be before 'To'.")
+            st.stop()
+        _range_days = (ed - sd).days + 1
+        ped = sd - timedelta(days=1)
+        psd = ped - timedelta(days=_range_days - 1)
 
     st.markdown(
         f"""<div class="period-pill">
               <div style="font-size:.78em;color:#90bdd8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Selected Period</div>
-              <div style="font-size:.88em"><b style="color:#1b8fc5">Current:</b> <span style="color:#e2e8f0">{sd.strftime('%b %Y')}</span></div>
-              <div style="font-size:.88em;margin-top:2px"><b style="color:#1b8fc5">Previous:</b> <span style="color:#e2e8f0">{psd.strftime('%b %Y')}</span></div>
+              <div style="font-size:.88em"><b style="color:#1b8fc5">Current:</b> <span style="color:#e2e8f0">{sd.strftime('%d %b %Y')} → {ed.strftime('%d %b %Y')}</span></div>
+              <div style="font-size:.88em;margin-top:2px"><b style="color:#1b8fc5">Previous:</b> <span style="color:#e2e8f0">{psd.strftime('%d %b %Y')} → {ped.strftime('%d %b %Y')}</span></div>
             </div>""",
         unsafe_allow_html=True,
     )
@@ -1212,7 +914,7 @@ section_divider()
 # ═════════════════════════════════════════════════════════════════════════════
 # SECTION: LINKEDIN ANALYTICS
 # ═════════════════════════════════════════════════════════════════════════════
-def _render_linkedin(df_analytics, df_extras, followers_total):
+def _render_linkedin(df_analytics, df_extras, followers_total, sd, psd):
     section_header("💼", "LinkedIn Analytics",
                    "Impressions, clicks, engagement, followers & visitors", "#0a66c2")
 
@@ -1244,18 +946,10 @@ def _render_linkedin(df_analytics, df_extras, followers_total):
         st.error("No valid date records in lnkd-extras.")
         return
 
-    _last12    = [(date.today().replace(day=1) - relativedelta(months=i)).strftime("%B %Y") for i in range(12)]
-    _all_months = sorted(
-        set(_last12)
-        | set(df_analytics.get("MonthStr", pd.Series(dtype=str)).dropna())
-        | set(df_extras.get("MonthStr", pd.Series(dtype=str)).dropna()),
-        key=lambda d: datetime.strptime(d, "%B %Y"),
-        reverse=True,
-    )
-    _sel   = st.selectbox("Select month", _all_months, index=0, key="lnkd_month")
-    _sel_p = pd.Period(datetime.strptime(_sel, "%B %Y"), freq="M")
-    _prev_p = _sel_p - 1
-    _prev_label = _prev_p.strftime("%B %Y")
+    # Use the global sidebar date selection
+    _sel_p      = pd.Period(sd, freq="M")
+    _prev_p     = pd.Period(psd, freq="M")
+    _prev_label = psd.strftime("%B %Y")
 
     def _mslice(df, col, period, agg="sum"):
         if "Month" not in df.columns or col not in df.columns:
@@ -1300,7 +994,7 @@ def _render_linkedin(df_analytics, df_extras, followers_total):
     )
 
 
-_render_linkedin(df_lnkd_analytics, df_lnkd_extras, lnkd_followers_total)
+_render_linkedin(df_lnkd_analytics, df_lnkd_extras, lnkd_followers_total, sd, psd)
 
 section_divider()
 
@@ -1310,19 +1004,11 @@ section_divider()
 section_header("📘", "Facebook Page Analytics",
                "Page views, likes, followers & published posts", "#1877f2")
 
-_fb_opts = list(dict.fromkeys(
-    [(datetime.today().replace(day=1) - timedelta(days=30 * i)).strftime("%B %Y") for i in range(12)]
-))
-_fb_sel   = st.selectbox("Select Month", _fb_opts, index=0, key="fb_month")
-_fb_dt    = datetime.strptime(_fb_sel, "%B %Y")
-_fb_cs    = _fb_dt.replace(day=1)
-_fb_ce    = (_fb_cs + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-_fb_ps    = (_fb_cs - timedelta(days=1)).replace(day=1)
-_fb_pe    = _fb_cs - timedelta(days=1)
-_fb_since  = _fb_cs.strftime("%Y-%m-%d")
-_fb_until  = _fb_ce.strftime("%Y-%m-%d")
-_fb_psince = _fb_ps.strftime("%Y-%m-%d")
-_fb_puntil = _fb_pe.strftime("%Y-%m-%d")
+# Use global sidebar date selection directly
+_fb_since  = sd.strftime("%Y-%m-%d")
+_fb_until  = ed.strftime("%Y-%m-%d")
+_fb_psince = psd.strftime("%Y-%m-%d")
+_fb_puntil = ped.strftime("%Y-%m-%d")
 
 with ThreadPoolExecutor(max_workers=7) as _fp:
     _fvc = _fp.submit(get_total_metric_value, "page_views_total", _fb_since,  _fb_until,  PAGE_ID, ACCESS_TOKEN)
@@ -1353,7 +1039,7 @@ for _i, (_t, _v, _d, _c, _ic) in enumerate(_fb_metrics):
 
 st.markdown(
     f"<div style='font-size:.95em;font-weight:700;color:#0f2d44;margin:22px 0 10px'>"
-    f"Posts Published in {_fb_sel}</div>",
+    f"Posts Published in {sd.strftime('%B %Y')}</div>",
     unsafe_allow_html=True,
 )
 
@@ -1384,24 +1070,23 @@ section_divider()
 # SECTION: YOUTUBE ANALYTICS
 # ═════════════════════════════════════════════════════════════════════════════
 section_header("▶️", "YouTube Channel Overview",
-               "Subscribers, views, watch time & top videos (last 28 days)", "#ff0000")
+               f"Subscribers, views, watch time & top videos — {sd.strftime('%B %Y')}", "#ff0000")
 
-_yt_sc, _yt_ec, _yt_sp, _yt_ep = get_yt_date_ranges()
-
+# Use the global sidebar date range (same as all other sections)
 with ThreadPoolExecutor(max_workers=3) as _yp:
-    _fyc = _yp.submit(get_yt_analytics_summary, CHANNEL_ID, _yt_sc, _yt_ec, YT_ACCESS_TOKEN)
-    _fyp = _yp.submit(get_yt_analytics_summary, CHANNEL_ID, _yt_sp, _yt_ep, YT_ACCESS_TOKEN)
+    _fyc = _yp.submit(get_yt_analytics_summary, CHANNEL_ID, sd,  ed,  YT_ACCESS_TOKEN)
+    _fyp = _yp.submit(get_yt_analytics_summary, CHANNEL_ID, psd, ped, YT_ACCESS_TOKEN)
     _fys = _yp.submit(get_total_subscribers, CHANNEL_ID, YOUTUBE_API_KEY)
-    _yt_cur   = _fyc.result()
-    _yt_prev  = _fyp.result()
+    _yt_cur     = _fyc.result()
+    _yt_prev    = _fyp.result()
     _total_subs = _fys.result()
 
 _yt_net_subs = _yt_cur["subs_gained"] - _yt_cur["subs_lost"]
 _yt_metrics  = [
-    ("Total Subscribers",    _total_subs,           safe_percent(_yt_prev["subs_gained"], _yt_cur["subs_gained"]), "#ff0000", "📺",
+    ("Total Subscribers",     _total_subs,           safe_percent(_yt_prev["subs_gained"], _yt_cur["subs_gained"]), "#ff0000", "📺",
      f"{'+'if _yt_net_subs>=0 else ''}{_yt_net_subs:,} net this period"),
-    ("Views (28 days)",      _yt_cur["views"],      safe_percent(_yt_prev["views"],      _yt_cur["views"]),       "#e67e22", "👁️", None),
-    ("Watch Time (28d, min)",_yt_cur["watch_time"], safe_percent(_yt_prev["watch_time"], _yt_cur["watch_time"]),  "#16a085", "⏱️", None),
+    ("Views",                 _yt_cur["views"],      safe_percent(_yt_prev["views"],      _yt_cur["views"]),       "#e67e22", "👁️", None),
+    ("Watch Time (min)",      _yt_cur["watch_time"], safe_percent(_yt_prev["watch_time"], _yt_cur["watch_time"]),  "#16a085", "⏱️", None),
 ]
 _yt_cols = st.columns(3)
 for _i, (_lbl, _val, _d, _c, _ic, _fmt) in enumerate(_yt_metrics):
@@ -1409,11 +1094,11 @@ for _i, (_lbl, _val, _d, _c, _ic, _fmt) in enumerate(_yt_metrics):
         render_kpi_card(_lbl, _val, _d, _c, icon=_ic, fmt_value=_fmt)
 
 st.markdown(
-    "<div style='font-size:.95em;font-weight:700;color:#0f2d44;margin:22px 0 10px'>"
-    "Top 5 Videos — Last 28 Days</div>",
+    f"<div style='font-size:.95em;font-weight:700;color:#0f2d44;margin:22px 0 10px'>"
+    f"Top 5 Videos — {sd.strftime('%B %Y')}</div>",
     unsafe_allow_html=True,
 )
-_top_vids = get_top_videos(CHANNEL_ID, YOUTUBE_API_KEY, _yt_sc, _yt_ec, YT_ACCESS_TOKEN)
+_top_vids = get_top_videos(CHANNEL_ID, YOUTUBE_API_KEY, sd, ed, YT_ACCESS_TOKEN)
 if not _top_vids.empty:
     _vdf = _top_vids[["title", "views", "watch_time", "likes", "comments"]].copy()
     _vdf.columns = ["Title", "Views", "Watch Time (min)", "Likes", "Comments"]
@@ -1436,92 +1121,242 @@ section_divider()
 # PDF REPORT GENERATION
 # ═════════════════════════════════════════════════════════════════════════════
 def _generate_pdf():
-    pdf = FPDF()
-    pdf.add_page()
+    """Industry-standard multi-page PDF report with coloured section banners."""
+    from fpdf import FPDF
 
-    # Logo
+    # ── Helpers ──────────────────────────────────────────────────────────────
+    NAV  = (15, 45, 68)    # #0f2d44 — navbar navy
+    TEAL = (27, 143, 197)  # #1b8fc5
+    GRN  = (92, 168, 50)   # #5ca832
+    AMB  = (230, 126, 34)  # #e67e22
+    RED  = (220, 38, 38)   # #dc2626
+    LT   = (248, 250, 252) # light row fill
+    W    = 190             # usable page width
+
+    class PDF(FPDF):
+        def header(self): pass  # custom header via draw_page_header
+        def footer(self):
+            self.set_y(-14)
+            self.set_font("Arial", "I", 8)
+            self.set_text_color(160, 160, 160)
+            self.cell(0, 8,
+                f"Salasar Services · Digital Marketing Report · {date.today().strftime('%d %B %Y')}   |   Page {self.page_no()}",
+                0, 0, "C")
+
+    def draw_page_header(pdf, logo_path):
+        """Full-width dark header bar with logo + title."""
+        pdf.set_fill_color(*NAV)
+        pdf.rect(0, 0, 210, 26, "F")
+        if logo_path:
+            try:
+                pdf.image(logo_path, x=8, y=4, h=18)
+            except Exception:
+                pass
+        pdf.set_xy(62, 8)
+        pdf.set_font("Arial", "B", 14)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 9, "Digital Marketing Performance Report", ln=0)
+        pdf.set_xy(62, 16)
+        pdf.set_font("Arial", "", 9)
+        pdf.set_text_color(160, 210, 240)
+        pdf.cell(0, 6,
+            f"Period: {format_month_year(sd)}   |   Previous: {format_month_year(psd)}   |   Salasar Services",
+            ln=1)
+        pdf.ln(6)
+
+    def section_banner(pdf, title, r, g, b):
+        """Coloured full-width section banner."""
+        pdf.set_fill_color(r, g, b)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(W, 9, f"  {title}", 0, 1, "L", fill=True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(2)
+
+    def kpi_row(pdf, metrics):
+        """Render a horizontal row of KPI boxes. metrics = list of (label, value, delta%)."""
+        n      = len(metrics)
+        box_w  = W / n
+        box_h  = 22
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        for idx, (label, value, delta) in enumerate(metrics):
+            x = x_start + idx * box_w
+            # box fill
+            pdf.set_fill_color(245, 248, 252)
+            pdf.rect(x + 1, y_start, box_w - 2, box_h, "F")
+            # value
+            pdf.set_xy(x + 2, y_start + 2)
+            pdf.set_font("Arial", "B", 13)
+            pdf.set_text_color(*NAV)
+            pdf.cell(box_w - 4, 7, str(value), 0, 0, "C")
+            # label
+            pdf.set_xy(x + 2, y_start + 9)
+            pdf.set_font("Arial", "", 7)
+            pdf.set_text_color(100, 116, 139)
+            pdf.cell(box_w - 4, 5, label, 0, 0, "C")
+            # delta badge
+            if delta is not None:
+                try:
+                    dv = float(str(delta).replace("%","").replace("+",""))
+                    sign   = "+" if dv >= 0 else ""
+                    dc     = (22, 163, 74) if dv >= 0 else (220, 38, 38)
+                    dtext  = f"{sign}{dv:.1f}% vs prev"
+                except Exception:
+                    dc    = (100, 116, 139)
+                    dtext = str(delta)
+                pdf.set_xy(x + 2, y_start + 14)
+                pdf.set_font("Arial", "", 6.5)
+                pdf.set_text_color(*dc)
+                pdf.cell(box_w - 4, 5, dtext, 0, 0, "C")
+        pdf.set_xy(x_start, y_start + box_h + 3)
+
+    def table(pdf, headers, rows, col_widths, alt_fill=(248, 250, 252)):
+        """Render a styled table with alternating rows."""
+        pdf.set_font("Arial", "B", 8)
+        pdf.set_fill_color(*NAV)
+        pdf.set_text_color(255, 255, 255)
+        for h, w in zip(headers, col_widths):
+            pdf.cell(w, 7, h, 0, 0, "L", fill=True)
+        pdf.ln()
+        pdf.set_font("Arial", "", 8)
+        for ri, row in enumerate(rows):
+            fill = ri % 2 == 1
+            pdf.set_fill_color(*alt_fill)
+            pdf.set_text_color(30, 41, 59)
+            for val, w in zip(row, col_widths):
+                pdf.cell(w, 6, str(val)[:60], 0, 0, "L", fill=fill)
+            pdf.ln()
+        pdf.ln(3)
+
+    def check_page_break(pdf, needed=30):
+        if pdf.get_y() > 260:
+            pdf.add_page()
+            draw_page_header(pdf, logo_path)
+
+    # ── Download logo ────────────────────────────────────────────────────────
+    logo_path = None
     try:
-        logo_bytes = requests.get(LOGO_URL, timeout=5).content
-        logo_path  = "logo_temp.png"
+        logo_bytes = requests.get(LOGO_URL, timeout=6).content
+        logo_path  = "/tmp/salasar_logo_pdf.png"
         Image.open(io.BytesIO(logo_bytes)).convert("RGBA").save(logo_path)
-        pdf.image(logo_path, x=10, y=8, w=50)
     except Exception:
         pass
 
-    # Title
-    pdf.set_xy(65, 15)
-    pdf.set_font("Arial", "B", 17)
-    pdf.set_text_color(15, 45, 68)
-    pdf.cell(0, 12, "Salasar Services Digital Marketing Report", ln=1)
-    pdf.set_font("Arial", "", 12)
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(6)
-    pdf.cell(0, 10, f"Period: {format_month_year(sd)}  |  Previous: {format_month_year(psd)}", ln=1)
-    pdf.ln(4)
+    # ── Build PDF ────────────────────────────────────────────────────────────
+    pdf = PDF()
+    pdf.set_margins(10, 10, 10)
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    draw_page_header(pdf, logo_path)
 
-    def _pdf_section(title):
-        pdf.set_font("Arial", "B", 14)
-        pdf.set_text_color(15, 45, 68)
-        pdf.cell(0, 12, title, ln=1)
-        pdf.set_font("Arial", "", 12)
-        pdf.set_text_color(0, 0, 0)
+    # ── 1. WEBSITE PERFORMANCE ───────────────────────────────────────────────
+    section_banner(pdf, "1   Website Performance  (Google Search Console)", *TEAL)
+    kpi_row(pdf, [
+        ("Total Clicks",    f"{gsc_clicks:,}",         f"{gsc_clicks_delta:+.1f}%"),
+        ("Impressions",     f"{gsc_impressions:,}",    f"{gsc_impr_delta:+.1f}%"),
+        ("Avg CTR",         f"{gsc_ctr*100:.2f}%",     f"{gsc_ctr_delta:+.1f}%"),
+    ])
 
-    # Website Performance
-    _pdf_section("Website Performance")
-    for title, value, delta, _ in perf_data:
-        val_str = f"{value:.2f}%" if title == "Average CTR" else f"{int(value):,}"
-        pdf.cell(0, 9, f"{title}: {val_str}  ({delta:+.2f}% vs previous month)", ln=1)
-    pdf.ln(2)
+    # ── 2. WEBSITE ANALYTICS ─────────────────────────────────────────────────
+    check_page_break(pdf)
+    section_banner(pdf, "2   Website Analytics  (Google Analytics 4)", *NAV)
+    kpi_row(pdf, [
+        ("Total Users",      f"{cur_users:,}",         f"{delta_users:+.1f}%"),
+        ("Sessions",         f"{total_sessions:,}",    f"{delta_sessions:+.1f}%"),
+        ("Organic Clicks",   f"{organic_clicks:,}",    f"{delta_organic:+.1f}%"),
+        ("New Users",        f"{new_users:,}",         f"{delta_new:+.1f}%"),
+        ("Returning Users",  f"{returning_users:,}",   f"{delta_returning:+.1f}%"),
+    ])
 
-    # Top Content
-    _pdf_section("Top Content")
-    pdf.set_font("Arial", "B", 11)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_fill_color(15, 45, 68)
-    pdf.cell(110, 8, "Page", border=1, fill=True)
-    pdf.cell(30,  8, "Clicks", border=1, fill=True)
-    pdf.cell(35,  8, "Change (%)", border=1, fill=True, ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_fill_color(248, 250, 252)
-    for _ri, row in enumerate(top_content_data):
-        _fill = _ri % 2 == 0
-        pdf.cell(110, 8, row["Page"][:65],    border=1, fill=_fill)
-        pdf.cell(30,  8, str(row["Clicks"]),  border=1, fill=_fill)
-        pdf.cell(35,  8, row["Change (%)"],   border=1, fill=_fill, ln=1)
-    pdf.ln(4)
-
-    # Website Analytics
-    _pdf_section("Website Analytics")
-    pdf.cell(0, 8, f"Total Users: {cur_users:,}  ({delta_users:+.2f}%)", ln=1)
-    pdf.cell(0, 8, f"Sessions: {total_sessions:,}  ({delta_sessions:+.2f}%)", ln=1)
-    pdf.cell(0, 8, f"Organic Clicks: {organic_clicks:,}  ({delta_organic:+.2f}%)", ln=1)
-    pdf.cell(0, 8, f"New Users: {new_users:,}  ({delta_new:+.2f}%)", ln=1)
-    pdf.cell(0, 8, f"Returning Users: {returning_users:,}  ({delta_returning:+.2f}%)", ln=1)
+    # Top Content table
+    pdf.set_font("Arial", "B", 8.5)
+    pdf.set_text_color(*NAV)
+    pdf.cell(0, 6, "Top Content by Clicks", ln=1)
     pdf.ln(1)
+    table(pdf,
+        ["Page URL", "Clicks", "Change (%)"],
+        [[r["Page"][:80], r["Clicks"], r["Change (%)"] + "%"] for r in top_content_data],
+        [130, 30, 30])
 
-    pdf.set_font("Arial", "B", 11); pdf.cell(0, 8, "Active Users by Country (Top 5)", ln=1)
-    pdf.set_font("Arial", "", 11)
-    for c in country_data:
-        pdf.cell(0, 7, f"{c['country']}: {c['activeUsers']:,}", ln=1)
+    # Country + Channel tables side-by-side
+    check_page_break(pdf)
+    y_before = pdf.get_y()
+    pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
+    pdf.cell(90, 6, "Active Users by Country (Top 5)", ln=0)
+    pdf.cell(10, 6, "", ln=0)
+    pdf.cell(90, 6, "Traffic by Channel", ln=1)
     pdf.ln(1)
+    # left column — country
+    x_left = pdf.get_x()
+    y_now  = pdf.get_y()
+    pdf.set_font("Arial", "B", 8); pdf.set_fill_color(*NAV); pdf.set_text_color(255, 255, 255)
+    pdf.cell(65, 7, "Country", 0, 0, "L", fill=True)
+    pdf.cell(25, 7, "Users",   0, 0, "R", fill=True)
+    pdf.ln()
+    pdf.set_font("Arial", "", 8)
+    for ri, c in enumerate(country_data):
+        fill = ri % 2 == 1
+        pdf.set_fill_color(248, 250, 252); pdf.set_text_color(30, 41, 59)
+        pdf.cell(65, 6, c["country"][:35], 0, 0, "L", fill=fill)
+        pdf.cell(25, 6, f"{c['activeUsers']:,}", 0, 0, "R", fill=fill)
+        pdf.ln()
+    y_after_country = pdf.get_y()
+    # right column — channel
+    pdf.set_xy(105, y_now)
+    pdf.set_font("Arial", "B", 8); pdf.set_fill_color(*NAV); pdf.set_text_color(255, 255, 255)
+    pdf.cell(60, 7, "Channel", 0, 0, "L", fill=True)
+    pdf.cell(25, 7, "Sessions", 0, 0, "R", fill=True)
+    pdf.ln()
+    pdf.set_font("Arial", "", 8)
+    for ri, (_, row) in enumerate(traf_df.iterrows()):
+        fill = ri % 2 == 1
+        pdf.set_xy(105, pdf.get_y())
+        pdf.set_fill_color(248, 250, 252); pdf.set_text_color(30, 41, 59)
+        pdf.cell(60, 6, str(row.iloc[0])[:30], 0, 0, "L", fill=fill)
+        pdf.cell(25, 6, f"{int(row.iloc[1]):,}", 0, 0, "R", fill=fill)
+        pdf.ln()
+    pdf.set_y(max(y_after_country, pdf.get_y()) + 3)
 
-    pdf.set_font("Arial", "B", 11); pdf.cell(0, 8, "Traffic by Channel", ln=1)
-    pdf.set_font("Arial", "", 11)
-    for _, row in traf_df.iterrows():
-        pdf.cell(0, 7, f"{row['channel']}: {row['sessions']:,}", ln=1)
-    pdf.ln(1)
+    # Organic queries table
+    check_page_break(pdf)
+    pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
+    pdf.cell(0, 6, "Top Organic Search Queries", ln=1); pdf.ln(1)
+    table(pdf,
+        ["Query", "Clicks"],
+        [[row["query"][:90], row["clicks"]] for _, row in sc_df.iterrows()],
+        [160, 30])
 
-    pdf.set_font("Arial", "B", 11); pdf.cell(0, 8, "Top 10 Organic Queries", ln=1)
-    pdf.set_font("Arial", "", 11)
-    for _, row in sc_df.iterrows():
-        pdf.cell(0, 7, f"{row['query']}  ({row['clicks']:,} clicks)", ln=1)
+    # ── 3. LINKEDIN ──────────────────────────────────────────────────────────
+    check_page_break(pdf)
+    section_banner(pdf, "3   LinkedIn Analytics", 10, 102, 194)
 
-    # Footer
-    pdf.set_y(-25)
-    pdf.set_font("Arial", "I", 8)
-    pdf.set_text_color(150, 150, 150)
-    pdf.cell(0, 10, f"Generated {date.today().strftime('%d %B %Y')} · Salasar Services Digital Marketing Dashboard", 0, 0, "C")
+    # ── 4. FACEBOOK ──────────────────────────────────────────────────────────
+    check_page_break(pdf)
+    section_banner(pdf, "4   Facebook Page Analytics", 24, 119, 242)
+    kpi_row(pdf, [
+        ("Page Views",      f"{_cur_views:,}",   f"{safe_percent(_prev_views, _cur_views):+.1f}%"),
+        ("Page Likes",      f"{_cur_likes:,}",   f"{safe_percent(_prev_likes, _cur_likes):+.1f}%"),
+        ("Total Followers", f"{_life_foll:,}",   f"{safe_percent(_prev_foll, _life_foll):+.1f}%"),
+    ])
+
+    # ── 5. YOUTUBE ───────────────────────────────────────────────────────────
+    check_page_break(pdf)
+    section_banner(pdf, "5   YouTube Channel Overview", 255, 0, 0)
+    kpi_row(pdf, [
+        ("Subscribers",    f"{_total_subs:,}",          None),
+        ("Views",          f"{_yt_cur['views']:,}",      f"{safe_percent(_yt_prev['views'], _yt_cur['views']):+.1f}%"),
+        ("Watch Time(min)",f"{_yt_cur['watch_time']:,}", f"{safe_percent(_yt_prev['watch_time'], _yt_cur['watch_time']):+.1f}%"),
+    ])
+    if not _top_vids.empty:
+        pdf.set_font("Arial", "B", 8.5); pdf.set_text_color(*NAV)
+        pdf.cell(0, 6, f"Top Videos — {sd.strftime('%B %Y')}", ln=1); pdf.ln(1)
+        table(pdf,
+            ["Title", "Views", "Watch Time", "Likes"],
+            [[row["title"][:55], f"{int(row['views']):,}",
+              f"{int(row['watch_time']):,}", f"{int(row['likes']):,}"]
+             for _, row in _top_vids.iterrows()],
+            [110, 25, 30, 25])
 
     return io.BytesIO(pdf.output(dest="S").encode("latin1"))
 
