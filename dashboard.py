@@ -169,92 +169,137 @@ _PASSWORD = st.secrets["login"]["password"]
 
 
 def login():
-    # ── Dark branded background only for the login page ───────────────────
+    # ── Page & form scoped styles (login screen only) ─────────────────────
     st.markdown(
         """<style>
-        .stApp, [data-testid="stAppViewContainer"] {
-            background: linear-gradient(145deg, #071b2a 0%, #0f2d44 45%, #0d3d5c 100%) !important;
+        /* Full-page dark gradient */
+        .stApp,
+        [data-testid="stAppViewContainer"] {
+            background: linear-gradient(150deg, #071b2a 0%, #0f2d44 55%, #0a2236 100%) !important;
         }
-        /* tighten form spacing on login */
+        /* Strip the default Streamlit form card chrome */
         [data-testid="stForm"] {
             background: transparent !important;
             border: none !important;
             padding: 0 !important;
+            box-shadow: none !important;
         }
-        /* accent the Sign-In button */
-        [data-testid="stForm"] button[kind="primaryFormSubmit"],
-        [data-testid="stForm"] button[type="submit"] {
-            background: linear-gradient(90deg, #1b8fc5, #5ca832) !important;
-            color: #ffffff !important;
-            border: none !important;
+        /* Input fields — dark-tinted so they contrast against the dark card */
+        [data-testid="stForm"] input {
+            background: rgba(255,255,255,0.07) !important;
+            border: 1px solid rgba(255,255,255,0.18) !important;
+            border-radius: 8px !important;
+            color: #e2e8f0 !important;
+        }
+        [data-testid="stForm"] input::placeholder { color: #64748b !important; }
+        [data-testid="stForm"] input:focus {
+            border-color: #1b8fc5 !important;
+            box-shadow: 0 0 0 3px rgba(27,143,197,.20) !important;
+        }
+        /* Input labels */
+        [data-testid="stForm"] label {
+            color: #90bdd8 !important;
+            font-size: .82em !important;
             font-weight: 600 !important;
             letter-spacing: .04em !important;
+            text-transform: uppercase !important;
+        }
+        /* Login button — small, brand teal, NOT full-width */
+        [data-testid="stForm"] button[kind="primaryFormSubmit"],
+        [data-testid="stForm"] button[type="submit"] {
+            background: #1b8fc5 !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: .9em !important;
+            padding: 0.45em 1.8em !important;
+            width: auto !important;           /* override full-width default */
+            min-width: 110px !important;
+        }
+        [data-testid="stForm"] button:hover {
+            background: #1478a8 !important;
         }
         </style>""",
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='height:7vh'></div>", unsafe_allow_html=True)
+    # Vertical breathing room
+    st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
 
-    # Three-column layout — narrow centred card
-    _, card_col, _ = st.columns([1.8, 1, 1.8])
+    # Three-column centering — card sits in the middle column
+    _, card_col, _ = st.columns([1.7, 1, 1.7])
 
     with card_col:
-        # ── Logo + tagline on dark bg ───────────────────────────────────
+        # ── Dark card — layout mirrors image 2 ──────────────────────────
         st.markdown(
-            f"""<div style="text-align:center;margin-bottom:30px;">
-                  <img src="{LOGO_URL}"
-                       style="height:60px;margin-bottom:18px;display:block;
-                              margin-left:auto;margin-right:auto;
-                              filter:brightness(1.15) drop-shadow(0 2px 8px rgba(27,143,197,.35));">
-                  <div style="font-size:1.4em;font-weight:700;color:#ffffff;
-                               letter-spacing:-.01em;line-height:1.2">
-                    Dashboard Login
-                  </div>
-                  <div style="font-size:.80em;color:#90bdd8;margin-top:6px;
-                               letter-spacing:.04em;text-transform:uppercase">
-                    Salasar Services &nbsp;·&nbsp; Digital Marketing
-                  </div>
-                </div>""",
+            f"""<div style="
+                    background: #0d2a3e;
+                    border-radius: 14px;
+                    padding: 32px 30px 26px;
+                    border: 1px solid rgba(27,143,197,0.25);
+                    box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 16px rgba(0,0,0,.30);">
+
+              <!-- Logo — left aligned, like image 2 -->
+              <div style="margin-bottom:22px;">
+                <img src="{LOGO_URL}"
+                     style="height:52px;
+                            filter:brightness(1.1) drop-shadow(0 1px 6px rgba(27,143,197,.3));">
+              </div>
+
+              <!-- Heading -->
+              <div style="font-size:1.25em;font-weight:800;color:#1b8fc5;
+                           text-transform:uppercase;letter-spacing:.06em;
+                           margin-bottom:6px;">
+                Dashboard Login
+              </div>
+
+              <!-- Subtitle -->
+              <div style="font-size:.84em;color:#64748b;margin-bottom:24px;
+                           font-weight:400;">
+                Please sign in to access the dashboard.
+              </div>
+            </div>""",
             unsafe_allow_html=True,
         )
 
-        # ── Card ────────────────────────────────────────────────────────
+        # ── Streamlit form renders immediately below the header div ─────
+        # (Streamlit widgets cannot sit inside custom HTML divs, so we rely
+        #  on the card div above setting the visual context and use CSS to
+        #  fake the continuation of the dark card behind the form widgets.)
         st.markdown(
-            """<div style="
-                background: #ffffff;
-                border-radius: 16px;
-                padding: 28px 28px 22px;
-                box-shadow: 0 24px 64px rgba(0,0,0,.45), 0 4px 16px rgba(0,0,0,.25);
-                border-top: 4px solid #1b8fc5;">""",
+            """<style>
+            /* Extend dark card visually behind the Streamlit form */
+            section[data-testid="stMain"] > div > div > div > div:nth-child(2)
+                > div > div > div > div[data-testid="column"]:nth-child(2) {
+                background: #0d2a3e;
+                border-radius: 0 0 14px 14px;
+                border: 1px solid rgba(27,143,197,0.25);
+                border-top: none;
+                padding: 0 30px 26px !important;
+                margin-top: -14px;
+                box-shadow: 0 20px 60px rgba(0,0,0,.55);
+            }
+            </style>""",
             unsafe_allow_html=True,
         )
+
         with st.form("login_form"):
-            st.markdown(
-                "<div style='font-size:.72em;font-weight:700;text-transform:uppercase;"
-                "letter-spacing:.08em;color:#0f2d44;margin-bottom:14px'>"
-                "Sign in to continue</div>",
-                unsafe_allow_html=True,
-            )
-            username = st.text_input("Username", placeholder="Enter username",
-                                     label_visibility="collapsed")
-            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+            username = st.text_input("Username", placeholder="Enter your username")
             password = st.text_input("Password", type="password",
-                                     placeholder="Enter password",
-                                     label_visibility="collapsed")
-            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            submitted = st.form_submit_button("Sign In  →", use_container_width=True)
+                                     placeholder="Enter your password")
+            submitted = st.form_submit_button("Login")
             if submitted:
                 if username == _USERNAME and password == _PASSWORD:
                     st.session_state["logged_in"] = True
                     st.rerun()
                 else:
                     st.error("Invalid credentials.")
-        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
-            "<div style='text-align:center;margin-top:18px;"
-            "font-size:.74em;color:#4a6b83'>© 2026 Salasar Services</div>",
+            "<div style='text-align:left;margin-top:12px;"
+            "font-size:.73em;color:#334d63;padding-left:2px'>"
+            "© 2026 Salasar Services</div>",
             unsafe_allow_html=True,
         )
 
