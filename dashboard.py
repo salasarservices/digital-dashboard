@@ -231,59 +231,30 @@ def login():
     _, card_col, _ = st.columns([1.7, 1, 1.7])
 
     with card_col:
-        # ── Dark card — layout mirrors image 2 ──────────────────────────
+        # Card header — NO indentation inside the string (4-space indent = markdown code block)
+        # NO HTML comments (<!-- --> also confuses Streamlit markdown parser)
+        card_header = (
+            "<div style='background:#0d2a3e;border-radius:14px 14px 0 0;"
+            "padding:28px 28px 20px;border:1px solid rgba(27,143,197,0.25);"
+            "border-bottom:none;box-shadow:0 -4px 24px rgba(0,0,0,.4)'>"
+            f"<img src='{LOGO_URL}' style='height:48px;margin-bottom:18px;display:block;"
+            "filter:brightness(1.1) drop-shadow(0 1px 6px rgba(27,143,197,.3))'>"
+            "<div style='font-size:1.2em;font-weight:800;color:#1b8fc5;"
+            "text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px'>"
+            "Dashboard Login</div>"
+            "<div style='font-size:.83em;color:#64748b;font-weight:400;margin-bottom:4px'>"
+            "Please sign in to access the dashboard.</div>"
+            "</div>"
+        )
+        st.markdown(card_header, unsafe_allow_html=True)
+
+        # Card body — wraps the Streamlit form widgets
         st.markdown(
-            f"""<div style="
-                    background: #0d2a3e;
-                    border-radius: 14px;
-                    padding: 32px 30px 26px;
-                    border: 1px solid rgba(27,143,197,0.25);
-                    box-shadow: 0 20px 60px rgba(0,0,0,.55), 0 4px 16px rgba(0,0,0,.30);">
-
-              <!-- Logo — left aligned, like image 2 -->
-              <div style="margin-bottom:22px;">
-                <img src="{LOGO_URL}"
-                     style="height:52px;
-                            filter:brightness(1.1) drop-shadow(0 1px 6px rgba(27,143,197,.3));">
-              </div>
-
-              <!-- Heading -->
-              <div style="font-size:1.25em;font-weight:800;color:#1b8fc5;
-                           text-transform:uppercase;letter-spacing:.06em;
-                           margin-bottom:6px;">
-                Dashboard Login
-              </div>
-
-              <!-- Subtitle -->
-              <div style="font-size:.84em;color:#64748b;margin-bottom:24px;
-                           font-weight:400;">
-                Please sign in to access the dashboard.
-              </div>
-            </div>""",
+            "<div style='background:#0d2a3e;border-radius:0 0 14px 14px;"
+            "padding:20px 28px 26px;border:1px solid rgba(27,143,197,0.25);"
+            "border-top:none;box-shadow:0 16px 48px rgba(0,0,0,.5)'>",
             unsafe_allow_html=True,
         )
-
-        # ── Streamlit form renders immediately below the header div ─────
-        # (Streamlit widgets cannot sit inside custom HTML divs, so we rely
-        #  on the card div above setting the visual context and use CSS to
-        #  fake the continuation of the dark card behind the form widgets.)
-        st.markdown(
-            """<style>
-            /* Extend dark card visually behind the Streamlit form */
-            section[data-testid="stMain"] > div > div > div > div:nth-child(2)
-                > div > div > div > div[data-testid="column"]:nth-child(2) {
-                background: #0d2a3e;
-                border-radius: 0 0 14px 14px;
-                border: 1px solid rgba(27,143,197,0.25);
-                border-top: none;
-                padding: 0 30px 26px !important;
-                margin-top: -14px;
-                box-shadow: 0 20px 60px rgba(0,0,0,.55);
-            }
-            </style>""",
-            unsafe_allow_html=True,
-        )
-
         with st.form("login_form"):
             username = st.text_input("Username", placeholder="Enter your username")
             password = st.text_input("Password", type="password",
@@ -295,11 +266,11 @@ def login():
                     st.rerun()
                 else:
                     st.error("Invalid credentials.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
-            "<div style='text-align:left;margin-top:12px;"
-            "font-size:.73em;color:#334d63;padding-left:2px'>"
-            "© 2026 Salasar Services</div>",
+            "<div style='text-align:left;margin-top:10px;"
+            "font-size:.73em;color:#334d63'>© 2026 Salasar Services</div>",
             unsafe_allow_html=True,
         )
 
