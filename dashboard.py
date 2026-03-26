@@ -169,26 +169,40 @@ _PASSWORD = st.secrets["login"]["password"]
 
 
 def login():
-    st.markdown(
-        """<div style="max-width:420px;margin:6em auto;">
-             <div style="text-align:center;margin-bottom:28px;">
-               <img src="https://ik.imagekit.io/salasarservices/Salasar-Logo-new.png?updatedAt=1771587668127"
-                    style="height:56px;margin-bottom:16px;">
-               <h2 style="color:#0f2d44;font-size:1.4em;font-weight:700;margin:0">Dashboard Login</h2>
-               <p style="color:#64748b;font-size:.88em;margin:6px 0 0">Salasar Services Digital Marketing</p>
-             </div>
-           </div>""",
-        unsafe_allow_html=True,
-    )
-    with st.form("login_form"):
-        username = st.text_input("Username", placeholder="Enter username")
-        password = st.text_input("Password", type="password", placeholder="Enter password")
-        if st.form_submit_button("Sign In", use_container_width=True):
-            if username == _USERNAME and password == _PASSWORD:
-                st.session_state["logged_in"] = True
-                st.rerun()
-            else:
-                st.error("Invalid credentials. Please try again.")
+    # Vertical spacer
+    st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
+
+    # Three-column layout: blank | card | blank
+    _, card_col, _ = st.columns([1.6, 1, 1.6])
+
+    with card_col:
+        # Logo + heading above the form card
+        st.markdown(
+            f"""<div style="text-align:center;margin-bottom:24px;">
+                  <img src="{LOGO_URL}" style="height:54px;margin-bottom:14px;display:block;margin-left:auto;margin-right:auto;">
+                  <div style="font-size:1.35em;font-weight:700;color:#0f2d44;letter-spacing:-.01em">Dashboard Login</div>
+                  <div style="font-size:.82em;color:#64748b;margin-top:5px">Salasar Services · Digital Marketing</div>
+                </div>""",
+            unsafe_allow_html=True,
+        )
+
+        # Card wrapper — gives the form a white elevated box
+        st.markdown(
+            """<div style="background:#ffffff;border-radius:16px;padding:28px 28px 20px;
+                          box-shadow:0 4px 24px rgba(15,45,68,.10),0 1px 4px rgba(0,0,0,.05);">""",
+            unsafe_allow_html=True,
+        )
+        with st.form("login_form"):
+            username = st.text_input("Username", placeholder="Enter username")
+            password = st.text_input("Password", type="password", placeholder="Enter password")
+            submitted = st.form_submit_button("Sign In →", use_container_width=True)
+            if submitted:
+                if username == _USERNAME and password == _PASSWORD:
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials. Please try again.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if "logged_in" not in st.session_state:
@@ -679,7 +693,11 @@ with st.sidebar:
                 st.session_state["confirm_lnkd_flush"] = False
 
     st.markdown("---")
-    pdf_report_btn = st.button("📄  Download PDF Report", use_container_width=True)
+    pdf_report_btn = st.button("📄  Generate PDF Report", use_container_width=True)
+    # Placeholder sits right below the generate button in the sidebar.
+    # It is populated at the bottom of the file once _generate_pdf() is defined
+    # and all data variables (gsc_clicks, _cur_views, _yt_cur …) are in scope.
+    _pdf_dl_ph = st.sidebar.empty()
 
     st.markdown(
         "<div style='position:absolute;bottom:18px;left:0;right:0;text-align:center;"
@@ -1234,14 +1252,15 @@ def _generate_pdf():
             pdf.add_page()
             draw_page_header(pdf, logo_path)
 
-    # ── Download logo ────────────────────────────────────────────────────────
+    # ── Download logo — cross-platform temp path (fixes Windows /tmp/ crash) ─
+    import os, tempfile
     logo_path = None
     try:
         logo_bytes = requests.get(LOGO_URL, timeout=6).content
-        logo_path  = "/tmp/salasar_logo_pdf.png"
+        logo_path  = os.path.join(tempfile.gettempdir(), "salasar_logo_pdf.png")
         Image.open(io.BytesIO(logo_bytes)).convert("RGBA").save(logo_path)
     except Exception:
-        pass
+        logo_path = None
 
     # ── Build PDF ────────────────────────────────────────────────────────────
     pdf = PDF()
@@ -1358,14 +1377,26 @@ def _generate_pdf():
              for _, row in _top_vids.iterrows()],
             [110, 25, 30, 25])
 
-    return io.BytesIO(pdf.output(dest="S").encode("latin1"))
+    # fpdf  (1.x) → output() returns str  → encode to bytes
+    # fpdf2 (2.x) → output() returns bytes → use directly
+    _raw = pdf.output(dest="S")
+    if isinstance(_raw, str):
+        _raw = _raw.encode("latin1")
+    return io.BytesIO(_raw)
 
 
+# ── PDF: generate on button click, cache in session state ──────────────────
+# _generate_pdf() is defined above; all data variables are now in scope.
+# Using session_state means the download button persists across reruns so
+# the user can actually click it without it disappearing.
 if pdf_report_btn:
-    _pdf = _generate_pdf()
-    st.sidebar.download_button(
-        label="📥 Download PDF",
-        data=_pdf,
+    with st.spinner("Building PDF report…"):
+        st.session_state["_pdf_cache"] = _generate_pdf()
+
+if "_pdf_cache" in st.session_state:
+    _pdf_dl_ph.download_button(
+        label="📥  Download PDF",
+        data=st.session_state["_pdf_cache"],
         file_name=f"Salasar-Report-{date.today()}.pdf",
         mime="application/pdf",
         use_container_width=True,
