@@ -6,11 +6,9 @@ google-api-python-client
 google-analytics-data
 pandas
 python-dateutil
-streamlit-authenticator
 fpdf
 requests
 Pillow
 pycountry
-plotly
 pymongo
-streamlit-js-eval
+certifi
