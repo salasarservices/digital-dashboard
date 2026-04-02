@@ -12,3 +12,4 @@ Pillow
 pycountry
 pymongo
 certifi
+openpyxl

@@ -611,22 +611,23 @@ def load_linkedin_analytics_df():
             serverSelectionTimeoutMS=5000,
             tlsCAFile=certifi.where(),
         )
-        db          = client["sal-lnkd"]
-        doc_analytics = db["lnkd-analytics"].find_one({})
-        doc_extras    = db["lnkd-extras"].find_one({})
+        db = client["sal-lnkd"]
+
+        # Aggregate daily_records across ALL documents in each collection
+        analytics_rows, followers_total = [], 0
+        for doc in db["lnkd-analytics"].find({}):
+            analytics_rows.extend(doc.get("daily_records", []))
+            if doc.get("followers_total", 0):
+                followers_total = max(followers_total, int(doc["followers_total"]))
+
+        extras_rows = []
+        for doc in db["lnkd-extras"].find({}):
+            extras_rows.extend(doc.get("daily_records", []))
+
         client.close()
 
-        df_analytics = (
-            pd.DataFrame(doc_analytics["daily_records"])
-            if doc_analytics and "daily_records" in doc_analytics
-            else pd.DataFrame()
-        )
-        followers_total = int(doc_analytics.get("followers_total", 0)) if doc_analytics else 0
-        df_extras = (
-            pd.DataFrame(doc_extras["daily_records"])
-            if doc_extras and "daily_records" in doc_extras
-            else pd.DataFrame()
-        )
+        df_analytics = pd.DataFrame(analytics_rows) if analytics_rows else pd.DataFrame()
+        df_extras    = pd.DataFrame(extras_rows)    if extras_rows    else pd.DataFrame()
         return df_analytics, df_extras, followers_total
     except Exception as e:
         st.error(f"Could not connect to LinkedIn MongoDB: {e}")
@@ -761,6 +762,118 @@ with st.sidebar:
         with _c2:
             if st.button("Cancel", key="lnkd_no"):
                 st.session_state["confirm_lnkd_flush"] = False
+
+    st.markdown("---")
+
+    # ── LinkedIn Excel Upload ──────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:.7em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.1em;color:#90bdd8;margin-bottom:6px'>Upload LinkedIn Data</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Excel file must have two sheets: **analytics** and **extras**. "
+        "Rows are appended by date (duplicates skipped)."
+    )
+
+    _xlsx_file = st.file_uploader(
+        "LinkedIn Excel (.xlsx)",
+        type=["xlsx"],
+        label_visibility="collapsed",
+        key="lnkd_xlsx_upload",
+    )
+
+    if _xlsx_file is not None:
+        def _upsert_linkedin_excel(xlsx_bytes):
+            """
+            Parse the uploaded Excel file and upsert into MongoDB.
+
+            Sheet "analytics" expected columns:
+                date | total_followers | total_unique_visitors
+
+            Sheet "extras" expected columns:
+                date | total_impressions | clicks | engagement_rate
+
+            Strategy: fetch existing daily_records from a single "upload" doc,
+            merge by date (new rows win), write back.
+            """
+            try:
+                xls = pd.read_excel(io.BytesIO(xlsx_bytes), sheet_name=None)
+            except Exception as exc:
+                return False, f"Could not read Excel file: {exc}"
+
+            required_sheets = {"analytics", "extras"}
+            missing = required_sheets - {s.lower() for s in xls}
+            if missing:
+                return False, f"Missing sheet(s): {', '.join(missing)}"
+
+            xls = {k.lower(): v for k, v in xls.items()}
+
+            def _validate_cols(df, cols, sheet):
+                missing_c = [c for c in cols if c not in df.columns]
+                if missing_c:
+                    return f"Sheet '{sheet}' is missing column(s): {', '.join(missing_c)}"
+                return None
+
+            err = _validate_cols(
+                xls["analytics"],
+                ["date", "total_followers", "total_unique_visitors"],
+                "analytics",
+            )
+            if err:
+                return False, err
+            err = _validate_cols(
+                xls["extras"],
+                ["date", "total_impressions", "clicks", "engagement_rate"],
+                "extras",
+            )
+            if err:
+                return False, err
+
+            def _df_to_records(df):
+                df = df.copy()
+                df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+                df = df.dropna(subset=["date"])
+                return df.to_dict(orient="records")
+
+            new_analytics = _df_to_records(xls["analytics"])
+            new_extras    = _df_to_records(xls["extras"])
+
+            try:
+                client = MongoClient(
+                    st.secrets["mongo_uri_linkedin"],
+                    serverSelectionTimeoutMS=5000,
+                    tlsCAFile=certifi.where(),
+                )
+                db = client["sal-lnkd"]
+
+                def _merge_into(collection_name, new_rows, date_key="date"):
+                    col = db[collection_name]
+                    doc = col.find_one({"_source": "excel_upload"}) or {}
+                    existing = {r[date_key]: r for r in doc.get("daily_records", [])}
+                    for row in new_rows:
+                        existing[row[date_key]] = row
+                    merged = sorted(existing.values(), key=lambda r: r[date_key])
+                    payload = {"_source": "excel_upload", "daily_records": merged}
+                    if "followers_total" in doc:
+                        payload["followers_total"] = doc["followers_total"]
+                    col.replace_one({"_source": "excel_upload"}, payload, upsert=True)
+
+                _merge_into("lnkd-analytics", new_analytics)
+                _merge_into("lnkd-extras",    new_extras)
+                client.close()
+                return True, f"Uploaded {len(new_analytics)} analytics rows and {len(new_extras)} extras rows."
+            except Exception as exc:
+                return False, f"MongoDB error: {exc}"
+
+        if st.button("⬆  Upload to MongoDB", use_container_width=True, key="lnkd_upload_btn"):
+            with st.spinner("Uploading…"):
+                _ok, _msg = _upsert_linkedin_excel(_xlsx_file.read())
+            if _ok:
+                st.success(_msg)
+                st.cache_data.clear()
+            else:
+                st.error(_msg)
 
     st.markdown("---")
     pdf_report_btn = st.button("📄  Generate PDF Report", use_container_width=True)
@@ -1047,14 +1160,23 @@ def _render_linkedin(df_analytics, df_extras, followers_total, sd, psd):
             return 0.0
         return float(slc.sum() if agg == "sum" else slc.mean())
 
+    def _mslice_net(df, col, period):
+        """Net gain = last cumulative value minus first cumulative value in period."""
+        if "Month" not in df.columns or col not in df.columns:
+            return 0.0
+        slc = df[df["Month"] == period].sort_values("Date")[col].dropna()
+        if slc.empty:
+            return 0.0
+        return float(slc.iloc[-1] - slc.iloc[0]) if len(slc) >= 2 else float(slc.iloc[0])
+
     imp_c = _mslice(df_extras, "total_impressions", _sel_p)
     imp_p = _mslice(df_extras, "total_impressions", _prev_p)
     clk_c = _mslice(df_extras, "clicks", _sel_p)
     clk_p = _mslice(df_extras, "clicks", _prev_p)
     eng_c = _mslice(df_extras, "engagement_rate", _sel_p, "mean")
     eng_p = _mslice(df_extras, "engagement_rate", _prev_p, "mean")
-    fol_c = _mslice(df_analytics, "Total followers (Date-wise)", _sel_p)
-    fol_p = _mslice(df_analytics, "Total followers (Date-wise)", _prev_p)
+    fol_c = _mslice_net(df_analytics, "Total followers (Date-wise)", _sel_p)
+    fol_p = _mslice_net(df_analytics, "Total followers (Date-wise)", _prev_p)
     vis_c = _mslice(df_analytics, "Total Unique Visitors (Date-wise)", _sel_p)
     vis_p = _mslice(df_analytics, "Total Unique Visitors (Date-wise)", _prev_p)
 
