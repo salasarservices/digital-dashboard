@@ -363,6 +363,148 @@ def get_active_users_by_country(pid, sd, ed, top_n=5):
         return []
 
 
+@st.cache_data(ttl=3600)
+def get_ga4_engagement(pid, sd, ed):
+    """Engagement rate, avg session duration, pages per session, bounce rate."""
+    try:
+        resp = ga4_client.run_report(request={
+            "property": f"properties/{pid}",
+            "date_ranges": [{"start_date": sd.strftime("%Y-%m-%d"), "end_date": ed.strftime("%Y-%m-%d")}],
+            "metrics": [
+                {"name": "engagementRate"},
+                {"name": "averageSessionDuration"},
+                {"name": "screenPageViewsPerSession"},
+                {"name": "bounceRate"},
+            ],
+        })
+        row = resp.rows[0].metric_values
+        return {
+            "engagement_rate":   float(row[0].value),
+            "avg_session_dur":   float(row[1].value),
+            "pages_per_session": float(row[2].value),
+            "bounce_rate":       float(row[3].value),
+        }
+    except Exception:
+        return {"engagement_rate": 0.0, "avg_session_dur": 0.0, "pages_per_session": 0.0, "bounce_rate": 0.0}
+
+
+@st.cache_data(ttl=3600)
+def get_ga4_device_breakdown(pid, sd, ed):
+    """Sessions, users, engagement rate and avg duration by device category."""
+    try:
+        resp = ga4_client.run_report(request={
+            "property": f"properties/{pid}",
+            "date_ranges": [{"start_date": sd.strftime("%Y-%m-%d"), "end_date": ed.strftime("%Y-%m-%d")}],
+            "dimensions": [{"name": "deviceCategory"}],
+            "metrics": [
+                {"name": "sessions"},
+                {"name": "activeUsers"},
+                {"name": "engagementRate"},
+                {"name": "averageSessionDuration"},
+            ],
+            "order_bys": [{"metric": {"metric_name": "sessions"}, "desc": True}],
+        })
+        return [
+            {
+                "device":          r.dimension_values[0].value.title(),
+                "sessions":        int(r.metric_values[0].value),
+                "users":           int(r.metric_values[1].value),
+                "engagement_rate": float(r.metric_values[2].value),
+                "avg_duration":    float(r.metric_values[3].value),
+            }
+            for r in resp.rows
+        ]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_ga4_landing_pages(pid, sd, ed, top_n=10):
+    """Top landing pages with sessions, users, engagement rate, duration and bounce rate."""
+    try:
+        resp = ga4_client.run_report(request={
+            "property": f"properties/{pid}",
+            "date_ranges": [{"start_date": sd.strftime("%Y-%m-%d"), "end_date": ed.strftime("%Y-%m-%d")}],
+            "dimensions": [{"name": "landingPage"}],
+            "metrics": [
+                {"name": "sessions"},
+                {"name": "activeUsers"},
+                {"name": "engagementRate"},
+                {"name": "averageSessionDuration"},
+                {"name": "bounceRate"},
+            ],
+            "order_bys": [{"metric": {"metric_name": "sessions"}, "desc": True}],
+            "limit": top_n,
+        })
+        return [
+            {
+                "page":            r.dimension_values[0].value,
+                "sessions":        int(r.metric_values[0].value),
+                "users":           int(r.metric_values[1].value),
+                "engagement_rate": float(r.metric_values[2].value),
+                "avg_duration":    float(r.metric_values[3].value),
+                "bounce_rate":     float(r.metric_values[4].value),
+            }
+            for r in resp.rows
+        ]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_ga4_source_medium(pid, sd, ed, top_n=10):
+    """Top traffic sources by source/medium with sessions, users and engagement rate."""
+    try:
+        resp = ga4_client.run_report(request={
+            "property": f"properties/{pid}",
+            "date_ranges": [{"start_date": sd.strftime("%Y-%m-%d"), "end_date": ed.strftime("%Y-%m-%d")}],
+            "dimensions": [{"name": "sessionSource"}, {"name": "sessionMedium"}],
+            "metrics": [
+                {"name": "sessions"},
+                {"name": "activeUsers"},
+                {"name": "engagementRate"},
+            ],
+            "order_bys": [{"metric": {"metric_name": "sessions"}, "desc": True}],
+            "limit": top_n,
+        })
+        return [
+            {
+                "source":          r.dimension_values[0].value,
+                "medium":          r.dimension_values[1].value,
+                "sessions":        int(r.metric_values[0].value),
+                "users":           int(r.metric_values[1].value),
+                "engagement_rate": float(r.metric_values[2].value),
+            }
+            for r in resp.rows
+        ]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_ga4_top_events(pid, sd, ed, top_n=10):
+    """Top GA4 events by count with user reach."""
+    try:
+        resp = ga4_client.run_report(request={
+            "property": f"properties/{pid}",
+            "date_ranges": [{"start_date": sd.strftime("%Y-%m-%d"), "end_date": ed.strftime("%Y-%m-%d")}],
+            "dimensions": [{"name": "eventName"}],
+            "metrics": [{"name": "eventCount"}, {"name": "totalUsers"}],
+            "order_bys": [{"metric": {"metric_name": "eventCount"}, "desc": True}],
+            "limit": top_n,
+        })
+        return [
+            {
+                "event": r.dimension_values[0].value,
+                "count": int(r.metric_values[0].value),
+                "users": int(r.metric_values[1].value),
+            }
+            for r in resp.rows
+        ]
+    except Exception:
+        return []
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # GOOGLE SEARCH CONSOLE DATA FUNCTIONS
 # ═════════════════════════════════════════════════════════════════════════════
@@ -396,6 +538,81 @@ def get_search_console(site, sd, ed):
         body = {"startDate": sd.strftime("%Y-%m-%d"), "endDate": ed.strftime("%Y-%m-%d"),
                 "dimensions": ["page", "query"], "rowLimit": 500}
         return sc_client.searchanalytics().query(siteUrl=site, body=body).execute().get("rows", [])
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_gsc_query_report(site, sd, ed, limit=1000):
+    """All queries with clicks, impressions, CTR and average position."""
+    try:
+        body = {
+            "startDate":  sd.strftime("%Y-%m-%d"),
+            "endDate":    ed.strftime("%Y-%m-%d"),
+            "dimensions": ["query"],
+            "rowLimit":   limit,
+        }
+        rows = sc_client.searchanalytics().query(siteUrl=site, body=body).execute().get("rows", [])
+        return [
+            {
+                "query":       r["keys"][0],
+                "clicks":      r.get("clicks", 0),
+                "impressions": r.get("impressions", 0),
+                "ctr":         r.get("ctr", 0.0),
+                "position":    r.get("position", 0.0),
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_gsc_page_full_report(site, sd, ed, limit=500):
+    """All pages with clicks, impressions, CTR and avg position."""
+    try:
+        body = {
+            "startDate":  sd.strftime("%Y-%m-%d"),
+            "endDate":    ed.strftime("%Y-%m-%d"),
+            "dimensions": ["page"],
+            "rowLimit":   limit,
+        }
+        rows = sc_client.searchanalytics().query(siteUrl=site, body=body).execute().get("rows", [])
+        return [
+            {
+                "page":        r["keys"][0],
+                "clicks":      r.get("clicks", 0),
+                "impressions": r.get("impressions", 0),
+                "ctr":         r.get("ctr", 0.0),
+                "position":    r.get("position", 0.0),
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)
+def get_gsc_device_report(site, sd, ed):
+    """Clicks, impressions, CTR and avg position broken down by device type."""
+    try:
+        body = {
+            "startDate":  sd.strftime("%Y-%m-%d"),
+            "endDate":    ed.strftime("%Y-%m-%d"),
+            "dimensions": ["device"],
+            "rowLimit":   10,
+        }
+        rows = sc_client.searchanalytics().query(siteUrl=site, body=body).execute().get("rows", [])
+        return [
+            {
+                "device":      r["keys"][0].title(),
+                "clicks":      r.get("clicks", 0),
+                "impressions": r.get("impressions", 0),
+                "ctr":         r.get("ctr", 0.0),
+                "position":    r.get("position", 0.0),
+            }
+            for r in rows
+        ]
     except Exception:
         return []
 
@@ -658,6 +875,207 @@ def _fetch_all_gsc(site, sd, ed, psd, ped):
         get_search_console(site, sd, ed),
         get_search_console(site, psd, ped),
     )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SEO INSIGHTS ENGINE
+# ═════════════════════════════════════════════════════════════════════════════
+
+def compute_seo_insights(
+    gsc_queries_cur, gsc_queries_prev,
+    gsc_stats_cur, gsc_stats_prev,
+    ga4_eng_cur, ga4_eng_prev,
+    cur_users, prev_users,
+    total_sessions, prev_sessions,
+):
+    """
+    Analyse GSC + GA4 data to produce four lists:
+      improved        – positive trend bullets (green)
+      attention       – problems / negative trends (amber)
+      quick_wins      – keyword opportunity rows (list of dicts)
+      recommendations – strategic, actionable items (blue)
+    """
+    insights = {"improved": [], "attention": [], "quick_wins": [], "recommendations": []}
+
+    gsc_clicks, gsc_impressions, gsc_ctr = gsc_stats_cur
+    gsc_clicks_prev, gsc_impressions_prev, gsc_ctr_prev = gsc_stats_prev
+
+    # ── Organic clicks ────────────────────────────────────────────────────────
+    clicks_delta = pct_change(gsc_clicks, gsc_clicks_prev)
+    if clicks_delta > 5:
+        insights["improved"].append(
+            f"Organic clicks up {clicks_delta:.1f}% — SEO visibility is growing"
+        )
+    elif clicks_delta < -5:
+        insights["attention"].append(
+            f"Organic clicks fell {abs(clicks_delta):.1f}% — check for algorithm updates or ranking drops on key pages"
+        )
+
+    # ── Impressions ───────────────────────────────────────────────────────────
+    impr_delta = pct_change(gsc_impressions, gsc_impressions_prev)
+    if impr_delta > 10:
+        insights["improved"].append(
+            f"Search impressions grew {impr_delta:.1f}% — domain is gaining wider visibility in SERPs"
+        )
+    elif impr_delta < -10:
+        insights["attention"].append(
+            f"Impressions fell {abs(impr_delta):.1f}% — possible index coverage issue or crawl budget problem"
+        )
+
+    # ── CTR ───────────────────────────────────────────────────────────────────
+    if gsc_ctr_prev > 0:
+        ctr_delta = pct_change(gsc_ctr, gsc_ctr_prev)
+        if ctr_delta > 5:
+            insights["improved"].append(
+                f"Average CTR improved {ctr_delta:.1f}% — title / meta optimisations are paying off"
+            )
+    if gsc_ctr * 100 < 2.0 and gsc_impressions > 500:
+        insights["attention"].append(
+            f"Average CTR is only {gsc_ctr * 100:.2f}% — rewrite title tags with power words, numbers and emotional triggers"
+        )
+        insights["recommendations"].append(
+            "A/B test title tags: add numbers ('7 Ways…'), brackets ('[2026 Guide]'), and action verbs to boost CTR"
+        )
+
+    # ── Keyword position analysis & quick wins ────────────────────────────────
+    if gsc_queries_cur:
+        df_q = pd.DataFrame(gsc_queries_cur)
+        if not df_q.empty:
+            top3     = df_q[df_q["position"] <= 3]
+            avg_ctr  = float(df_q["ctr"].mean())
+
+            # Quick wins: page-2 keywords (pos 11-20) with 50+ impressions
+            qw = (
+                df_q[(df_q["position"] > 10) & (df_q["position"] <= 20) & (df_q["impressions"] >= 50)]
+                .sort_values("impressions", ascending=False)
+                .head(8)
+            )
+            for _, row in qw.iterrows():
+                insights["quick_wins"].append({
+                    "Query":       row["query"],
+                    "Position":    f"{row['position']:.1f}",
+                    "Impressions": int(row["impressions"]),
+                    "CTR":         f"{row['ctr'] * 100:.2f}%",
+                    "Action":      "Improve content depth & internal links to push to page 1",
+                })
+
+            # Low CTR on page 1 (hidden revenue — ranking but not clicking)
+            low_ctr_pg1 = (
+                df_q[(df_q["position"] <= 10) & (df_q["ctr"] < avg_ctr * 0.7) & (df_q["impressions"] >= 100)]
+                .sort_values("impressions", ascending=False)
+                .head(5)
+            )
+            for _, row in low_ctr_pg1.iterrows():
+                insights["quick_wins"].append({
+                    "Query":       row["query"],
+                    "Position":    f"{row['position']:.1f}",
+                    "Impressions": int(row["impressions"]),
+                    "CTR":         f"{row['ctr'] * 100:.2f}%",
+                    "Action":      "Rewrite title & meta — page 1 ranking but below-average CTR",
+                })
+
+            # Zero-click high-impression keywords (featured snippet / PAA gap)
+            zero_clk = df_q[(df_q["impressions"] >= 300) & (df_q["clicks"] == 0)]
+            if len(zero_clk) > 0:
+                insights["attention"].append(
+                    f"{len(zero_clk)} keyword(s) have 300+ impressions but zero clicks — "
+                    f"Google may be showing a featured snippet or PAA answer; add concise 40-60 word answer blocks to win these"
+                )
+
+            if gsc_queries_prev:
+                df_q_prev = pd.DataFrame(gsc_queries_prev)
+                if not df_q_prev.empty:
+                    prev_set  = set(df_q_prev["query"].str.lower())
+                    new_kws   = df_q[
+                        (~df_q["query"].str.lower().isin(prev_set)) &
+                        (df_q["position"] <= 20) & (df_q["clicks"] > 0)
+                    ]
+                    if len(new_kws) > 0:
+                        insights["improved"].append(
+                            f"{len(new_kws)} new keywords entered top 20 this period — content freshness and authority are growing"
+                        )
+                    top3_prev = df_q_prev[df_q_prev["position"] <= 3]
+                    if len(top3) > len(top3_prev):
+                        insights["improved"].append(
+                            f"Top-3 keyword count grew: {len(top3)} vs {len(top3_prev)} previously — strong upward ranking momentum"
+                        )
+                    elif len(top3) < len(top3_prev) and len(top3_prev) > 0:
+                        insights["attention"].append(
+                            f"Top-3 keywords shrank: {len(top3)} vs {len(top3_prev)} previously — investigate which pages lost top positions"
+                        )
+
+    # ── GA4 engagement ────────────────────────────────────────────────────────
+    eng_rate   = ga4_eng_cur.get("engagement_rate", 0) if ga4_eng_cur else 0
+    avg_dur    = ga4_eng_cur.get("avg_session_dur", 0)  if ga4_eng_cur else 0
+    bounce     = ga4_eng_cur.get("bounce_rate", 0)      if ga4_eng_cur else 0
+    pages_sess = ga4_eng_cur.get("pages_per_session", 0) if ga4_eng_cur else 0
+    eng_prev   = ga4_eng_prev.get("engagement_rate", 0) if ga4_eng_prev else 0
+
+    if eng_rate >= 0.65:
+        insights["improved"].append(
+            f"Engagement rate is strong at {eng_rate * 100:.1f}% — content relevance matches user search intent"
+        )
+    elif eng_rate > 0 and eng_rate < 0.45:
+        insights["attention"].append(
+            f"Low engagement rate ({eng_rate * 100:.1f}%) — landing pages may not match search intent; review content above the fold"
+        )
+        insights["recommendations"].append(
+            "Add a clear value proposition and CTA within the first screen on high-traffic landing pages"
+        )
+
+    if avg_dur >= 120:
+        insights["improved"].append(
+            f"Avg session duration is {avg_dur / 60:.1f} min — users are actively consuming content"
+        )
+    elif avg_dur > 0 and avg_dur < 45:
+        insights["attention"].append(
+            f"Short avg session ({avg_dur:.0f}s) — add related content blocks, embedded media and internal links to increase dwell time"
+        )
+
+    if bounce > 0.65:
+        insights["attention"].append(
+            f"High bounce rate ({bounce * 100:.1f}%) — page content or load speed may not match user expectations"
+        )
+        insights["recommendations"].append(
+            "Audit the top 5 landing pages for content-intent mismatch; ensure headlines mirror the query that brought users there"
+        )
+
+    if eng_prev > 0:
+        eng_delta_v = pct_change(eng_rate, eng_prev)
+        if eng_delta_v > 5:
+            insights["improved"].append(
+                f"Engagement rate improved {eng_delta_v:.1f}% vs previous period — UX or content changes are working"
+            )
+
+    # ── Traffic volume ────────────────────────────────────────────────────────
+    users_d = pct_change(cur_users, prev_users)
+    if users_d > 10:
+        insights["improved"].append(
+            f"Total users up {users_d:.1f}% — acquisition channels are accelerating"
+        )
+    elif users_d < -10:
+        insights["attention"].append(
+            f"User count fell {abs(users_d):.1f}% — review paid + organic channels for drop-off causes"
+        )
+
+    if pages_sess >= 2.5:
+        insights["improved"].append(
+            f"Pages per session: {pages_sess:.1f} — visitors explore multiple pages (strong internal linking)"
+        )
+    elif pages_sess > 0 and pages_sess < 1.5:
+        insights["recommendations"].append(
+            "Add contextual internal links and 'related services' blocks to increase pages-per-session above 1.5"
+        )
+
+    # ── Standing strategic recommendations ───────────────────────────────────
+    insights["recommendations"].extend([
+        "Build topic clusters: create supporting blog articles around your top 5 service pages to establish topical authority",
+        "Target featured snippets: add concise 40–60 word answer blocks at the top of pages ranking 1–5 for question-based queries",
+        "Optimise Core Web Vitals (LCP < 2.5s, INP < 200ms, CLS < 0.1) — Google uses these as direct ranking signals since 2021",
+        "Implement schema markup (FAQ, Service, LocalBusiness) on key pages to earn rich results and increase SERP real estate",
+    ])
+
+    return insights
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -969,6 +1387,44 @@ perf_data = [
     ("Average CTR",          gsc_ctr * 100,       gsc_ctr_delta,    "#16a085"),
 ]
 
+# ── Deep analytics fetch (second parallel pass) ───────────────────────────
+_deep_ldr = st.empty()
+show_loader(_deep_ldr, "Loading deep SEO analytics — keyword positions, engagement & traffic sources…")
+
+with ThreadPoolExecutor(max_workers=5) as _dp:
+    _fgea_c  = _dp.submit(get_ga4_engagement,       PROPERTY_ID, sd,  ed)
+    _fgea_p  = _dp.submit(get_ga4_engagement,       PROPERTY_ID, psd, ped)
+    _fgdev   = _dp.submit(get_ga4_device_breakdown, PROPERTY_ID, sd,  ed)
+    _fglp    = _dp.submit(get_ga4_landing_pages,    PROPERTY_ID, sd,  ed)
+    _fgsm    = _dp.submit(get_ga4_source_medium,    PROPERTY_ID, sd,  ed)
+    _fgev    = _dp.submit(get_ga4_top_events,       PROPERTY_ID, sd,  ed)
+    _fgscq   = _dp.submit(get_gsc_query_report,     SC_SITE_URL, sd,  ed)
+    _fgscqp  = _dp.submit(get_gsc_query_report,     SC_SITE_URL, psd, ped)
+    _fgscpg  = _dp.submit(get_gsc_page_full_report, SC_SITE_URL, sd,  ed)
+    _fgscde  = _dp.submit(get_gsc_device_report,    SC_SITE_URL, sd,  ed)
+
+    ga4_eng_cur      = _fgea_c.result()
+    ga4_eng_prev     = _fgea_p.result()
+    ga4_devices      = _fgdev.result()
+    ga4_landing_pg   = _fglp.result()
+    ga4_src_med      = _fgsm.result()
+    ga4_events       = _fgev.result()
+    gsc_queries      = _fgscq.result()
+    gsc_queries_prev = _fgscqp.result()
+    gsc_pages_full   = _fgscpg.result()
+    gsc_devices      = _fgscde.result()
+
+_deep_ldr.empty()
+
+# ── Compute SEO insights (all data now in scope) ──────────────────────────
+seo_insights = compute_seo_insights(
+    gsc_queries, gsc_queries_prev,
+    gsc_stats_cur, gsc_stats_prev,
+    ga4_eng_cur, ga4_eng_prev,
+    cur_users, prev_users,
+    total_sessions, prev_sessions,
+)
+
 # ═════════════════════════════════════════════════════════════════════════════
 # SECTION: WEBSITE PERFORMANCE
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1021,6 +1477,163 @@ def _render_top_content(data):
 
 
 _render_top_content(top_content_data)
+
+section_divider()
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION: GSC DEEP ANALYSIS
+# ═════════════════════════════════════════════════════════════════════════════
+section_header("🔍", "Search Console Deep Analysis",
+               "Keyword positions, CTR quality, device split & quick-win opportunities", "#0f2d44")
+
+if gsc_queries:
+    _df_q = pd.DataFrame(gsc_queries).sort_values("impressions", ascending=False)
+
+    # ── Position distribution ─────────────────────────────────────────────
+    _n_top3     = int((_df_q["position"] <= 3).sum())
+    _n_top10    = int((_df_q["position"] <= 10).sum())
+    _n_pg2      = int((_df_q["position"] > 10).sum())
+    _n_pg3plus  = int((_df_q["position"] > 20).sum())
+    _avg_pos    = float(_df_q["position"].mean()) if not _df_q.empty else 0.0
+    _total_kws  = len(_df_q)
+
+    if gsc_queries_prev:
+        _df_qp     = pd.DataFrame(gsc_queries_prev)
+        _n_top3_p  = int((_df_qp["position"] <= 3).sum())
+        _n_top10_p = int((_df_qp["position"] <= 10).sum())
+    else:
+        _n_top3_p = _n_top10_p = 0
+
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Keyword Position Distribution</div>",
+        unsafe_allow_html=True,
+    )
+    _pd_cols = st.columns(5)
+    _pd_defs = [
+        ("Top 3 Keywords",   _n_top3,    safe_percent(_n_top3_p,  _n_top3),  "#16a34a", "🥇",
+         None, "Keywords where your site ranks in position 1-3 — highest CTR zone"),
+        ("Top 10 Keywords",  _n_top10,   safe_percent(_n_top10_p, _n_top10), "#1b8fc5", "📈",
+         None, "Keywords on page 1 of Google (positions 1-10)"),
+        ("Page 2 Keywords",  _n_pg2,     0,                                   "#e67e22", "📊",
+         None, "Keywords ranking positions 11+ — prime targets for content improvement"),
+        ("Beyond Pos 20",    _n_pg3plus, 0,                                   "#64748b", "📉",
+         None, "Keywords ranking position 21+ — need significant content or authority work"),
+        ("Avg Position",     _avg_pos,   0,                                   "#0f2d44", "📍",
+         f"{_avg_pos:.1f}", "Average ranking position across all tracked keywords"),
+    ]
+    for _i, (_t, _v, _d, _c, _ic, _fmt, _tip) in enumerate(_pd_defs):
+        with _pd_cols[_i]:
+            render_kpi_card(_t, _v, _d, _c, tooltip=_tip, fmt_value=_fmt, icon=_ic)
+
+    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+
+    _ql, _qr = st.columns([1.3, 0.7])
+
+    with _ql:
+        # ── Full keyword table (top 30 by impressions) ────────────────────
+        st.markdown(
+            "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+            "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Top 30 Keywords by Impressions</div>",
+            unsafe_allow_html=True,
+        )
+        _avg_ctr_val = float(_df_q["ctr"].mean() * 100)
+
+        def _pos_badge(p):
+            if p <= 3:
+                return (f"<span style='background:#dcfce7;color:#16a34a;padding:2px 8px;"
+                        f"border-radius:10px;font-weight:700;font-size:.82em'>{p:.1f}</span>")
+            if p <= 10:
+                return (f"<span style='background:#dbeafe;color:#1d4ed8;padding:2px 8px;"
+                        f"border-radius:10px;font-weight:700;font-size:.82em'>{p:.1f}</span>")
+            if p <= 20:
+                return (f"<span style='background:#fef3c7;color:#d97706;padding:2px 8px;"
+                        f"border-radius:10px;font-weight:700;font-size:.82em'>{p:.1f}</span>")
+            return (f"<span style='background:#fee2e2;color:#dc2626;padding:2px 8px;"
+                    f"border-radius:10px;font-weight:700;font-size:.82em'>{p:.1f}</span>")
+
+        def _ctr_badge(c):
+            color = "#16a34a" if c >= _avg_ctr_val else "#dc2626"
+            bg    = "#dcfce7" if c >= _avg_ctr_val else "#fee2e2"
+            return (f"<span style='background:{bg};color:{color};padding:2px 8px;"
+                    f"border-radius:10px;font-size:.82em;font-weight:600'>{c:.2f}%</span>")
+
+        _qt = _df_q.head(30).copy()
+        _qt_show = _qt[["query", "clicks", "impressions", "ctr", "position"]].copy()
+        _qt_show.columns = ["Keyword", "Clicks", "Impressions", "CTR", "Pos"]
+        _qt_show["Pos"]         = _qt_show["Pos"].apply(_pos_badge)
+        _qt_show["CTR"]         = (_qt_show["CTR"] * 100).apply(_ctr_badge)
+        _qt_show["Clicks"]      = _qt_show["Clicks"].apply(lambda x: f"<b>{int(x):,}</b>")
+        _qt_show["Impressions"] = _qt_show["Impressions"].apply(lambda x: f"<b>{int(x):,}</b>")
+        st.markdown(_qt_show.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        st.caption("Green CTR = above average · Red CTR = below average (opportunity to improve title/meta)")
+
+    with _qr:
+        # ── Device breakdown (GSC) ────────────────────────────────────────
+        st.markdown(
+            "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+            "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Performance by Device</div>",
+            unsafe_allow_html=True,
+        )
+        if gsc_devices:
+            _dev_df = pd.DataFrame(gsc_devices).copy()
+            _dev_df["ctr"]      = (_dev_df["ctr"] * 100).round(2)
+            _dev_df["position"] = _dev_df["position"].round(1)
+            _dev_df.columns     = ["Device", "Clicks", "Impressions", "CTR (%)", "Avg Pos"]
+            _dev_df["Clicks"]      = _dev_df["Clicks"].apply(lambda x: f"<b>{int(x):,}</b>")
+            _dev_df["Impressions"] = _dev_df["Impressions"].apply(lambda x: f"<b>{int(x):,}</b>")
+            st.markdown(_dev_df.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        else:
+            st.info("No device data available.")
+
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+
+        # ── Page 2 quick wins ─────────────────────────────────────────────
+        st.markdown(
+            "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+            "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Quick Win Keywords (Pos 11–20, 50+ Impr)</div>",
+            unsafe_allow_html=True,
+        )
+        _qw_df = (
+            _df_q[(_df_q["position"] > 10) & (_df_q["position"] <= 20) & (_df_q["impressions"] >= 50)]
+            .sort_values("impressions", ascending=False)
+            .head(8)
+        )
+        if not _qw_df.empty:
+            _qw_show = _qw_df[["query", "impressions", "ctr", "position"]].copy()
+            _qw_show["position"] = _qw_show["position"].round(1)
+            _qw_show["ctr"]      = (_qw_show["ctr"] * 100).round(2)
+            _qw_show.columns     = ["Keyword", "Impr", "CTR %", "Pos"]
+            _qw_show["Impr"]  = _qw_show["Impr"].apply(lambda x: f"<b>{int(x):,}</b>")
+            _qw_show["Pos"]   = _qw_show["Pos"].apply(
+                lambda p: f"<span style='background:#fef3c7;color:#d97706;padding:2px 7px;"
+                          f"border-radius:10px;font-weight:700;font-size:.82em'>{p}</span>"
+            )
+            st.markdown(_qw_show.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+            st.caption("Proven demand — targeted content improvements can push these to page 1 in 4–8 weeks.")
+        else:
+            st.info("No page-2 opportunities with 50+ impressions this period.")
+
+    # ── Page-level GSC analysis ───────────────────────────────────────────────
+    if gsc_pages_full:
+        st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+            "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Page-Level Search Performance (Top 20 by Clicks)</div>",
+            unsafe_allow_html=True,
+        )
+        _pgf = pd.DataFrame(gsc_pages_full).sort_values("clicks", ascending=False).head(20).copy()
+        _pgf["ctr"]      = (_pgf["ctr"] * 100).round(2)
+        _pgf["position"] = _pgf["position"].round(1)
+        _pgf["page"]     = _pgf["page"].str.replace(SC_SITE_URL, "/", regex=False).str[:70]
+        _pgf.columns     = ["Page", "Clicks", "Impressions", "CTR (%)", "Avg Pos"]
+        _pgf["Clicks"]      = _pgf["Clicks"].apply(lambda x: f"<b>{int(x):,}</b>")
+        _pgf["Impressions"] = _pgf["Impressions"].apply(lambda x: f"<b>{int(x):,}</b>")
+        _pgf["Avg Pos"]     = _pgf["Avg Pos"].apply(_pos_badge)
+        st.markdown(_pgf.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+
+else:
+    st.info("No Search Console query data available for this period.")
 
 section_divider()
 
@@ -1109,6 +1722,226 @@ with _right_col:
         _sc_show["Clicks"] = _sc_show["Clicks"].apply(lambda x: f"<b>{int(x):,}</b>")
         st.markdown(_sc_show.to_html(escape=False, index=False, classes="dash-table"),
                     unsafe_allow_html=True)
+
+section_divider()
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION: GA4 DEEP DIVE
+# ═════════════════════════════════════════════════════════════════════════════
+section_header("📊", "Analytics Deep Dive",
+               "Engagement quality, device breakdown, landing pages & traffic sources", "#5ca832")
+
+# ── Engagement KPIs ──────────────────────────────────────────────────────────
+st.markdown(
+    "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+    "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Engagement Quality Metrics</div>",
+    unsafe_allow_html=True,
+)
+_eng_cols  = st.columns(4)
+_eng_d_eng = safe_percent(ga4_eng_prev.get("engagement_rate",   0), ga4_eng_cur.get("engagement_rate",   0))
+_eng_d_dur = safe_percent(ga4_eng_prev.get("avg_session_dur",   0), ga4_eng_cur.get("avg_session_dur",   0))
+_eng_d_pps = safe_percent(ga4_eng_prev.get("pages_per_session", 0), ga4_eng_cur.get("pages_per_session", 0))
+_eng_d_bnc = safe_percent(ga4_eng_prev.get("bounce_rate",       0), ga4_eng_cur.get("bounce_rate",       0))
+_eng_vals  = [
+    ("Engagement Rate",      ga4_eng_cur.get("engagement_rate",   0) * 100, _eng_d_eng,
+     "#16a34a", "💡", f"{ga4_eng_cur.get('engagement_rate',   0)*100:.2f}%",
+     "% of sessions where user was engaged (2s+ on page, 2+ pages, or conversion event fired)"),
+    ("Avg Session Duration", ga4_eng_cur.get("avg_session_dur",   0),       _eng_d_dur,
+     "#1b8fc5", "⏱️", f"{ga4_eng_cur.get('avg_session_dur', 0)/60:.1f} min",
+     "Average time users spend per session — higher means content is resonating"),
+    ("Pages per Session",    ga4_eng_cur.get("pages_per_session", 0),       _eng_d_pps,
+     "#e67e22", "📄", f"{ga4_eng_cur.get('pages_per_session', 0):.2f}",
+     "Average pages/screens viewed per session — reflects internal linking & content depth"),
+    ("Bounce Rate",          ga4_eng_cur.get("bounce_rate",       0) * 100, _eng_d_bnc,
+     "#dc2626", "↩️", f"{ga4_eng_cur.get('bounce_rate', 0)*100:.2f}%",
+     "% of single-page sessions with no engagement — lower is better; >65% warrants investigation"),
+]
+for _i, (_t, _v, _d, _c, _ic, _fmt, _tip) in enumerate(_eng_vals):
+    with _eng_cols[_i]:
+        render_kpi_card(_t, _v, _d, _c, tooltip=_tip, fmt_value=_fmt, icon=_ic)
+
+st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+
+# ── Device + Source/Medium side-by-side ──────────────────────────────────────
+_dd1, _dd2 = st.columns(2)
+
+with _dd1:
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Sessions by Device</div>",
+        unsafe_allow_html=True,
+    )
+    if ga4_devices:
+        _ddev = pd.DataFrame(ga4_devices).copy()
+        _total_sess_dev = _ddev["sessions"].sum() or 1
+        _ddev["Share"]    = (_ddev["sessions"] / _total_sess_dev * 100).round(1).astype(str) + "%"
+        _ddev["Eng Rate"] = (_ddev["engagement_rate"] * 100).round(1).astype(str) + "%"
+        _ddev["Avg Dur"]  = (_ddev["avg_duration"] / 60).round(1).astype(str) + " min"
+        _ddev_show = _ddev[["device", "sessions", "Share", "Eng Rate", "Avg Dur"]].copy()
+        _ddev_show.columns = ["Device", "Sessions", "Share", "Eng Rate", "Avg Dur"]
+        _ddev_show["Sessions"] = _ddev_show["Sessions"].apply(lambda x: f"<b>{int(x):,}</b>")
+        st.markdown(_ddev_show.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        st.caption("Compare Mobile vs Desktop engagement — a big gap signals mobile UX issues.")
+    else:
+        st.info("No device data available.")
+
+with _dd2:
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Traffic by Source / Medium</div>",
+        unsafe_allow_html=True,
+    )
+    if ga4_src_med:
+        _dsm = pd.DataFrame(ga4_src_med).copy()
+        _dsm["Source/Medium"] = _dsm["source"].str[:20] + " / " + _dsm["medium"]
+        _dsm["Eng Rate"]      = (_dsm["engagement_rate"] * 100).round(1).astype(str) + "%"
+        _dsm_show = _dsm[["Source/Medium", "sessions", "users", "Eng Rate"]].copy()
+        _dsm_show.columns = ["Source / Medium", "Sessions", "Users", "Eng Rate"]
+        _dsm_show["Sessions"] = _dsm_show["Sessions"].apply(lambda x: f"<b>{int(x):,}</b>")
+        _dsm_show["Users"]    = _dsm_show["Users"].apply(lambda x: f"<b>{int(x):,}</b>")
+        st.markdown(_dsm_show.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        st.caption("Channels with low engagement rate may need landing page or audience refinement.")
+    else:
+        st.info("No source/medium data available.")
+
+st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+
+# ── Landing pages + Events ────────────────────────────────────────────────────
+_lp1, _lp2 = st.columns([1.5, 0.5])
+
+with _lp1:
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Top 10 Landing Pages</div>",
+        unsafe_allow_html=True,
+    )
+    if ga4_landing_pg:
+        _dlp = pd.DataFrame(ga4_landing_pg).copy()
+        _dlp["Eng Rate"] = (_dlp["engagement_rate"] * 100).round(1).astype(str) + "%"
+        _dlp["Avg Dur"]  = (_dlp["avg_duration"] / 60).round(1).astype(str) + " min"
+        _dlp["Bounce"]   = (_dlp["bounce_rate"] * 100).round(1).astype(str) + "%"
+        _dlp["Page"]     = _dlp["page"].str.replace(SC_SITE_URL, "/", regex=False).str[:60]
+        _dlp_show = _dlp[["Page", "sessions", "Eng Rate", "Avg Dur", "Bounce"]].copy()
+        _dlp_show.columns = ["Landing Page", "Sessions", "Eng Rate", "Avg Dur", "Bounce"]
+        _dlp_show["Sessions"] = _dlp_show["Sessions"].apply(lambda x: f"<b>{int(x):,}</b>")
+        st.markdown(_dlp_show.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        st.caption("High bounce on a top landing page = content-intent mismatch or slow load speed.")
+    else:
+        st.info("No landing page data available.")
+
+with _lp2:
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>Top Events</div>",
+        unsafe_allow_html=True,
+    )
+    if ga4_events:
+        _dev_ev = pd.DataFrame(ga4_events).copy()
+        _dev_ev.columns = ["Event", "Count", "Users"]
+        _dev_ev["Count"] = _dev_ev["Count"].apply(lambda x: f"<b>{int(x):,}</b>")
+        _dev_ev["Users"] = _dev_ev["Users"].apply(lambda x: f"<b>{int(x):,}</b>")
+        st.markdown(_dev_ev.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+        st.caption("Key conversion events — low counts on contact/form events signal UX friction.")
+    else:
+        st.info("No event data available.")
+
+section_divider()
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SECTION: SEO INSIGHTS & ACTION PLAN
+# ═════════════════════════════════════════════════════════════════════════════
+section_header("💡", "SEO Insights & Action Plan",
+               "What improved, what needs attention, quick wins and strategic recommendations", "#e67e22")
+
+_ins_c1, _ins_c2, _ins_c3 = st.columns(3)
+
+with _ins_c1:
+    st.markdown(
+        "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;"
+        "padding:16px 18px;min-height:280px'>"
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;letter-spacing:.06em;"
+        "color:#16a34a;margin-bottom:12px'>✅  What Improved</div>",
+        unsafe_allow_html=True,
+    )
+    if seo_insights["improved"]:
+        for _item in seo_insights["improved"]:
+            st.markdown(
+                f"<div style='margin-bottom:10px;font-size:.87em;color:#166534;line-height:1.55'>"
+                f"<span style='color:#16a34a;font-weight:700;margin-right:6px'>▲</span>{_item}</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            "<div style='font-size:.85em;color:#6b7280'>No significant improvements detected this period.</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with _ins_c2:
+    st.markdown(
+        "<div style='background:#fffbeb;border:1px solid #fde68a;border-radius:12px;"
+        "padding:16px 18px;min-height:280px'>"
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;letter-spacing:.06em;"
+        "color:#d97706;margin-bottom:12px'>⚠️  What Needs Attention</div>",
+        unsafe_allow_html=True,
+    )
+    if seo_insights["attention"]:
+        for _item in seo_insights["attention"]:
+            st.markdown(
+                f"<div style='margin-bottom:10px;font-size:.87em;color:#92400e;line-height:1.55'>"
+                f"<span style='color:#d97706;font-weight:700;margin-right:6px'>!</span>{_item}</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            "<div style='font-size:.85em;color:#6b7280'>All key metrics are within healthy ranges — keep it up.</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with _ins_c3:
+    st.markdown(
+        "<div style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;"
+        "padding:16px 18px;min-height:280px'>"
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;letter-spacing:.06em;"
+        "color:#1d4ed8;margin-bottom:12px'>🚀  Strategic Recommendations</div>",
+        unsafe_allow_html=True,
+    )
+    for _idx, _rec in enumerate(seo_insights["recommendations"][:5], 1):
+        st.markdown(
+            f"<div style='margin-bottom:10px;font-size:.87em;color:#1e3a5f;line-height:1.55'>"
+            f"<span style='background:#dbeafe;color:#1d4ed8;border-radius:50%;width:18px;height:18px;"
+            f"display:inline-flex;align-items:center;justify-content:center;font-weight:700;"
+            f"font-size:.72em;margin-right:8px;vertical-align:middle'>{_idx}</span>{_rec}</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Quick wins keyword table ──────────────────────────────────────────────────
+if seo_insights["quick_wins"]:
+    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:.82em;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:.06em;color:#64748b;margin-bottom:10px'>"
+        "🎯  Keyword Quick Wins — Highest-Opportunity Targets This Period</div>",
+        unsafe_allow_html=True,
+    )
+    _qwt = pd.DataFrame(seo_insights["quick_wins"]).copy()
+    _qwt["Position"] = _qwt["Position"].apply(
+        lambda p: (
+            f"<span style='background:#dbeafe;color:#1d4ed8;padding:2px 8px;"
+            f"border-radius:10px;font-weight:700;font-size:.82em'>{p}</span>"
+            if float(p) <= 10 else
+            f"<span style='background:#fef3c7;color:#d97706;padding:2px 8px;"
+            f"border-radius:10px;font-weight:700;font-size:.82em'>{p}</span>"
+        )
+    )
+    _qwt["Impressions"] = _qwt["Impressions"].apply(lambda x: f"<b>{int(x):,}</b>")
+    st.markdown(_qwt.to_html(escape=False, index=False, classes="dash-table"), unsafe_allow_html=True)
+    st.caption(
+        "These keywords have proven search demand — one well-executed content push can move page-2 "
+        "keywords to page 1 within 4–8 weeks and double the organic traffic they generate."
+    )
 
 section_divider()
 
