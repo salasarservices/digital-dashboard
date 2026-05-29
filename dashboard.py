@@ -1388,31 +1388,43 @@ perf_data = [
 ]
 
 # ── Deep analytics fetch (second parallel pass) ───────────────────────────
+# GA4 calls run sequentially in one thread; GSC calls in a second thread.
+# This prevents concurrent gRPC calls on the same BetaAnalyticsDataClient
+# which causes malloc corruption on the Streamlit Cloud runtime.
 _deep_ldr = st.empty()
 show_loader(_deep_ldr, "Loading deep SEO analytics — keyword positions, engagement & traffic sources…")
 
-with ThreadPoolExecutor(max_workers=5) as _dp:
-    _fgea_c  = _dp.submit(get_ga4_engagement,       PROPERTY_ID, sd,  ed)
-    _fgea_p  = _dp.submit(get_ga4_engagement,       PROPERTY_ID, psd, ped)
-    _fgdev   = _dp.submit(get_ga4_device_breakdown, PROPERTY_ID, sd,  ed)
-    _fglp    = _dp.submit(get_ga4_landing_pages,    PROPERTY_ID, sd,  ed)
-    _fgsm    = _dp.submit(get_ga4_source_medium,    PROPERTY_ID, sd,  ed)
-    _fgev    = _dp.submit(get_ga4_top_events,       PROPERTY_ID, sd,  ed)
-    _fgscq   = _dp.submit(get_gsc_query_report,     SC_SITE_URL, sd,  ed)
-    _fgscqp  = _dp.submit(get_gsc_query_report,     SC_SITE_URL, psd, ped)
-    _fgscpg  = _dp.submit(get_gsc_page_full_report, SC_SITE_URL, sd,  ed)
-    _fgscde  = _dp.submit(get_gsc_device_report,    SC_SITE_URL, sd,  ed)
 
-    ga4_eng_cur      = _fgea_c.result()
-    ga4_eng_prev     = _fgea_p.result()
-    ga4_devices      = _fgdev.result()
-    ga4_landing_pg   = _fglp.result()
-    ga4_src_med      = _fgsm.result()
-    ga4_events       = _fgev.result()
-    gsc_queries      = _fgscq.result()
-    gsc_queries_prev = _fgscqp.result()
-    gsc_pages_full   = _fgscpg.result()
-    gsc_devices      = _fgscde.result()
+def _fetch_deep_ga4(pid, sd, ed, psd, ped):
+    return (
+        get_ga4_engagement(pid, sd,  ed),
+        get_ga4_engagement(pid, psd, ped),
+        get_ga4_device_breakdown(pid, sd, ed),
+        get_ga4_landing_pages(pid, sd, ed),
+        get_ga4_source_medium(pid, sd, ed),
+        get_ga4_top_events(pid, sd, ed),
+    )
+
+
+def _fetch_deep_gsc(site, sd, ed, psd, ped):
+    return (
+        get_gsc_query_report(site, sd,  ed),
+        get_gsc_query_report(site, psd, ped),
+        get_gsc_page_full_report(site, sd, ed),
+        get_gsc_device_report(site, sd, ed),
+    )
+
+
+with ThreadPoolExecutor(max_workers=2) as _dp:
+    _fga4_deep = _dp.submit(_fetch_deep_ga4, PROPERTY_ID, sd, ed, psd, ped)
+    _fgsc_deep = _dp.submit(_fetch_deep_gsc, SC_SITE_URL, sd, ed, psd, ped)
+
+    (ga4_eng_cur, ga4_eng_prev,
+     ga4_devices, ga4_landing_pg,
+     ga4_src_med, ga4_events)          = _fga4_deep.result()
+
+    (gsc_queries, gsc_queries_prev,
+     gsc_pages_full, gsc_devices)      = _fgsc_deep.result()
 
 _deep_ldr.empty()
 
