@@ -13,3 +13,6 @@ pycountry
 pymongo
 certifi
 openpyxl
+beautifulsoup4
+tomli
+pytest
