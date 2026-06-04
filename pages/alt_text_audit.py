@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import json
 import os
 import time
 from typing import Any
@@ -50,19 +49,8 @@ Return ONLY the alt text string or the word DECORATIVE.\
 @st.cache_resource(ttl=3600)
 def _get_gemini_model() -> object:
     import google.generativeai as genai
-    from google.auth.transport.requests import Request as GAuthRequest
-    from google.oauth2 import service_account
 
-    info = json.loads(st.secrets["gcp"]["service_account"])
-    pk = info.get("private_key", "").replace("\\n", "\n")
-    if not pk.endswith("\n"):
-        pk += "\n"
-    info["private_key"] = pk
-    creds = service_account.Credentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
-    )
-    creds.refresh(GAuthRequest())
-    genai.configure(credentials=creds)
+    genai.configure(api_key=st.secrets["gemini"]["api_key"])
     return genai.GenerativeModel(_GEMINI_MODEL)
 
 

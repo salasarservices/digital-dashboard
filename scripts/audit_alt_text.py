@@ -67,8 +67,8 @@ no quotes, no markdown.\
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _load_sa_json() -> str:
-    """Read service account JSON from .streamlit/secrets.toml or env var."""
+def _load_gemini_api_key() -> str:
+    """Read Gemini API key from .streamlit/secrets.toml or GEMINI_API_KEY env var."""
     secrets_path = os.path.join(
         os.path.dirname(__file__), "..", ".streamlit", "secrets.toml"
     )
@@ -80,30 +80,17 @@ def _load_sa_json() -> str:
                 import tomli as tomllib  # type: ignore[no-redef]
             with open(secrets_path, "rb") as fh:
                 secrets = tomllib.load(fh)
-            return secrets.get("gcp", {}).get("service_account", "")
+            return secrets.get("gemini", {}).get("api_key", "")
         except Exception as exc:
             print(f"[warn] Could not read secrets.toml: {exc}", file=sys.stderr)
-    return os.environ.get("GCP_SERVICE_ACCOUNT_JSON", "")
+    return os.environ.get("GEMINI_API_KEY", "")
 
 
-def _build_gemini_model(sa_json: str) -> object:
-    """Build a Gemini GenerativeModel authenticated with the GCP service account."""
+def _build_gemini_model(api_key: str) -> object:
+    """Build a Gemini GenerativeModel using an API key."""
     import google.generativeai as genai
-    from google.auth.transport.requests import Request as GAuthRequest
-    from google.oauth2 import service_account
 
-    info = json.loads(sa_json)
-    pk = info.get("private_key", "").replace("\\n", "\n")
-    if not pk.endswith("\n"):
-        pk += "\n"
-    info["private_key"] = pk
-
-    creds = service_account.Credentials.from_service_account_info(
-        info,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"],
-    )
-    creds.refresh(GAuthRequest())
-    genai.configure(credentials=creds)
+    genai.configure(api_key=api_key)
     return genai.GenerativeModel(_GEMINI_MODEL)
 
 
@@ -272,18 +259,19 @@ def main() -> int:
             return 0
 
     # ── Build Gemini client ───────────────────────────────────────────────────
-    sa_json = _load_sa_json()
-    if not sa_json:
+    api_key = _load_gemini_api_key()
+    if not api_key:
         print(
-            "[error] No GCP service account found.\n"
-            "Ensure .streamlit/secrets.toml has a [gcp] service_account key.",
+            "[error] No Gemini API key found.\n"
+            "Ensure .streamlit/secrets.toml has a [gemini] api_key entry\n"
+            "or set the GEMINI_API_KEY environment variable.",
             file=sys.stderr,
         )
         return 2
 
     print("[init] Authenticating with Gemini…")
     try:
-        model = _build_gemini_model(sa_json)
+        model = _build_gemini_model(api_key)
     except Exception as exc:
         print(f"[error] Could not build Gemini client: {exc}", file=sys.stderr)
         return 2
