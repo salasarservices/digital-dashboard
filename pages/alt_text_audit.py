@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import os
 import time
 from typing import Any
@@ -19,9 +18,9 @@ if not st.session_state.get("logged_in"):
 from sitemap.cache import load_cache  # noqa: E402
 from sitemap.captioner import CAPTION_MAP, detect_folder, generate_caption  # noqa: E402
 
-_CACHE_PATH = "output/sitemap_cache.json"
-_GEMINI_MODEL = "gemini-1.5-flash"
-_RATE_SLEEP = 0.4
+_CACHE_PATH    = "output/sitemap_cache.json"
+_CLAUDE_MODEL  = "claude-haiku-4-5"
+_RATE_SLEEP    = 0.3
 
 _PROMPT = """\
 You are writing SEO-optimised alt text for an insurance broker website \
@@ -45,12 +44,12 @@ Return ONLY the alt text string or the word DECORATIVE.\
 """
 
 
-# ── Gemini client (cached per session) ───────────────────────────────────────
+# ── Claude client (cached per session) ───────────────────────────────────────
 @st.cache_resource(ttl=3600)
-def _get_gemini_client() -> object:
-    from google import genai
+def _get_claude_client() -> object:
+    import anthropic
 
-    return genai.Client(api_key=st.secrets["gemini"]["api_key"])
+    return anthropic.Anthropic(api_key=st.secrets["anthropic"]["api_key"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,12 +92,15 @@ def _collect(cache: dict[str, Any], mode: str) -> list[dict[str, str]]:
 
 def _analyze_image(client: object, img_url: str, page_path: str, folder: str) -> str:
     import requests
-    from google.genai import types
+
+    # Skip tracking pixels and non-image URLs
+    skip_patterns = ("facebook.com/tr", "google-analytics", "googletagmanager")
+    if any(p in img_url for p in skip_patterns):
+        return "SKIP_NOT_IMAGE"
 
     try:
         resp = requests.get(
-            img_url,
-            timeout=12,
+            img_url, timeout=12,
             headers={"User-Agent": "SalasarAltTextAudit/1.0"},
         )
         if resp.status_code != 200:
@@ -107,7 +109,8 @@ def _analyze_image(client: object, img_url: str, page_path: str, folder: str) ->
         if "text" in content_type or "javascript" in content_type or len(resp.content) < 100:
             return "SKIP_NOT_IMAGE"
         mime = content_type.split(";")[0].strip() or "image/jpeg"
-        img_part = types.Part.from_bytes(data=resp.content, mime_type=mime)
+        import base64
+        img_b64 = base64.standard_b64encode(resp.content).decode("utf-8")
     except Exception:
         return "DOWNLOAD_FAILED"
 
@@ -116,11 +119,25 @@ def _analyze_image(client: object, img_url: str, page_path: str, folder: str) ->
         folder=folder,
     )
     try:
-        response = client.models.generate_content(  # type: ignore[union-attr]
-            model=_GEMINI_MODEL,
-            contents=[img_part, prompt],
+        response = client.messages.create(  # type: ignore[union-attr]
+            model=_CLAUDE_MODEL,
+            max_tokens=150,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type":       "base64",
+                            "media_type": mime,
+                            "data":       img_b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }],
         )
-        text = response.text.strip()
+        text = response.content[0].text.strip()
         if text != "DECORATIVE" and len(text) > 120:
             text = text[:117] + "…"
         return text
@@ -204,7 +221,7 @@ if run_btn:
         st.info("No images match this filter. Try changing the mode.")
         st.stop()
 
-    model = _get_gemini_client()
+    model = _get_claude_client()
     progress_bar = st.progress(0)
     status_ph    = st.empty()
     results: list[dict[str, Any]] = []

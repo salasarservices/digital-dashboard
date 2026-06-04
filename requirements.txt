@@ -16,5 +16,5 @@ openpyxl
 beautifulsoup4
 tomli
 pytest
-google-genai
 google-cloud-aiplatform
+anthropic
