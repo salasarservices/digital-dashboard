@@ -17,3 +17,4 @@ beautifulsoup4
 tomli
 pytest
 google-generativeai
+google-cloud-aiplatform
