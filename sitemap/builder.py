@@ -55,13 +55,10 @@ def build(pages: list[dict[str, Any]], output_dir: str = "output") -> tuple[str,
     ]
     eligible.sort(key=_sort_key)
 
-    urlset = ET.Element(
-        _tag(_NS_SITEMAP, "urlset"),
-        attrib={
-            "xmlns":       _NS_SITEMAP,
-            "xmlns:image": _NS_IMAGE,
-        },
-    )
+    # ET.register_namespace() at module level handles xmlns declarations
+    # automatically — do NOT also pass them in attrib or minidom will see
+    # duplicate attributes and raise "duplicate attribute" on parse-back.
+    urlset = ET.Element(_tag(_NS_SITEMAP, "urlset"))
 
     for page in eligible:
         url_el = ET.SubElement(urlset, _tag(_NS_SITEMAP, "url"))
@@ -96,7 +93,7 @@ def build(pages: list[dict[str, Any]], output_dir: str = "output") -> tuple[str,
         f"Post-write assertion failed: wrote {len(eligible)} URLs but parsed back {actual_count}"
     )
 
-    index = ET.Element(_tag(_NS_SITEMAP, "sitemapindex"), attrib={"xmlns": _NS_SITEMAP})
+    index = ET.Element(_tag(_NS_SITEMAP, "sitemapindex"))
     sm_el = ET.SubElement(index, _tag(_NS_SITEMAP, "sitemap"))
     ET.SubElement(sm_el, _tag(_NS_SITEMAP, "loc")).text = "https://www.salasarservices.com/sitemap.xml"
 
