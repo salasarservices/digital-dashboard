@@ -47,11 +47,10 @@ Return ONLY the alt text string or the word DECORATIVE.\
 
 # ── Gemini client (cached per session) ───────────────────────────────────────
 @st.cache_resource(ttl=3600)
-def _get_gemini_model() -> object:
-    import google.generativeai as genai
+def _get_gemini_client() -> object:
+    from google import genai
 
-    genai.configure(api_key=st.secrets["gemini"]["api_key"])
-    return genai.GenerativeModel(_GEMINI_MODEL)
+    return genai.Client(api_key=st.secrets["gemini"]["api_key"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -92,9 +91,9 @@ def _collect(cache: dict[str, Any], mode: str) -> list[dict[str, str]]:
     return candidates
 
 
-def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> str:
+def _analyze_image(client: object, img_url: str, page_path: str, folder: str) -> str:
     import requests
-    from PIL import Image as PILImage
+    from google.genai import types
 
     try:
         resp = requests.get(
@@ -107,7 +106,8 @@ def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> 
         content_type = resp.headers.get("Content-Type", "")
         if "text" in content_type or "javascript" in content_type or len(resp.content) < 100:
             return "SKIP_NOT_IMAGE"
-        img = PILImage.open(io.BytesIO(resp.content))
+        mime = content_type.split(";")[0].strip() or "image/jpeg"
+        img_part = types.Part.from_bytes(data=resp.content, mime_type=mime)
     except Exception:
         return "DOWNLOAD_FAILED"
 
@@ -116,7 +116,10 @@ def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> 
         folder=folder,
     )
     try:
-        response = model.generate_content([img, prompt])
+        response = client.models.generate_content(  # type: ignore[union-attr]
+            model=_GEMINI_MODEL,
+            contents=[img_part, prompt],
+        )
         text = response.text.strip()
         if text != "DECORATIVE" and len(text) > 120:
             text = text[:117] + "…"
@@ -201,7 +204,7 @@ if run_btn:
         st.info("No images match this filter. Try changing the mode.")
         st.stop()
 
-    model = _get_gemini_model()
+    model = _get_gemini_client()
     progress_bar = st.progress(0)
     status_ph    = st.empty()
     results: list[dict[str, Any]] = []
