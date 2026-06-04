@@ -48,25 +48,10 @@ Return ONLY the alt text string or the word DECORATIVE.\
 # ── Gemini client (cached per session) ───────────────────────────────────────
 @st.cache_resource(ttl=3600)
 def _get_gemini_model() -> object:
-    import json
-    import vertexai
-    from google.oauth2 import service_account
-    from vertexai.generative_models import GenerativeModel
+    import google.generativeai as genai
 
-    info = json.loads(st.secrets["gcp"]["service_account"])
-    pk = info.get("private_key", "").replace("\\n", "\n")
-    if not pk.endswith("\n"):
-        pk += "\n"
-    info["private_key"] = pk
-    creds = service_account.Credentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
-    )
-    vertexai.init(
-        project=info["project_id"],
-        location="us-central1",
-        credentials=creds,
-    )
-    return GenerativeModel(_GEMINI_MODEL)
+    genai.configure(api_key=st.secrets["gemini"]["api_key"])
+    return genai.GenerativeModel(_GEMINI_MODEL)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -109,7 +94,7 @@ def _collect(cache: dict[str, Any], mode: str) -> list[dict[str, str]]:
 
 def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> str:
     import requests
-    from vertexai.generative_models import Image as VertexImage
+    from PIL import Image as PILImage
 
     try:
         resp = requests.get(
@@ -122,7 +107,7 @@ def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> 
         content_type = resp.headers.get("Content-Type", "")
         if "text" in content_type or "javascript" in content_type or len(resp.content) < 100:
             return "SKIP_NOT_IMAGE"
-        img = VertexImage.from_bytes(resp.content)
+        img = PILImage.open(io.BytesIO(resp.content))
     except Exception:
         return "DOWNLOAD_FAILED"
 
@@ -131,7 +116,7 @@ def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> 
         folder=folder,
     )
     try:
-        response = model.generate_content([img, prompt])  # type: ignore[union-attr]
+        response = model.generate_content([img, prompt])
         text = response.text.strip()
         if text != "DECORATIVE" and len(text) > 120:
             text = text[:117] + "…"
