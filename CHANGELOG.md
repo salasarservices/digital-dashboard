@@ -1,5 +1,136 @@
 # Changelog — Digital Marketing Dashboard
 
+---
+
+## [3.1.0] — 2026-06-04
+
+### Alt Text Audit — Gemini Vision
+
+New Streamlit page and CLI script that analyses every website image using Google Gemini 1.5 Flash, compares AI-generated captions against current sitemap captions, and presents a side-by-side review table.
+
+#### New files
+
+| File | Description |
+|---|---|
+| `pages/alt_text_audit.py` | Streamlit page — run audit in-browser, review in `st.data_editor`, download CSV |
+| `scripts/audit_alt_text.py` | CLI equivalent — `--limit`, `--all-images`, `--mode`, `--dry-run`, `--verbose` |
+
+#### How it works
+
+1. Reads `output/sitemap_cache.json` (populated by Sitemap Generator — no re-crawl needed)
+2. Classifies every image as `manual` (in `CAPTION_MAP`), `folder_fallback`, or `unknown`
+3. Sends non-manual images to `gemini-1.5-flash` with page context prompt
+4. Authenticates via existing GCP service account (`gcp.service_account`) — no new API key required
+5. Returns AI caption alongside current caption for side-by-side review
+
+#### Gemini prompt design
+
+Each image is sent with:
+- Page URL for context
+- Image folder category (`product-image`, `Leadership_image`, etc.)
+- Rules: max 120 chars, end with `| Salasar Services`, no "Image of", DECORATIVE for non-informational images
+
+#### Cost
+
+~$0.0001 per image (~₹0.008). Full site audit of 5,000 images ≈ $0.50.
+
+#### Review workflow (Streamlit page)
+
+- Live progress bar shows filename + counter during analysis
+- `st.data_editor` table — editable `approved` and `promote_to_map` checkboxes per row
+- Download button exports approved captions as CSV
+- Captions marked `promote_to_map` are listed for permanent addition to `CAPTION_MAP`
+
+#### Dependencies added
+
+| Package | Purpose |
+|---|---|
+| `google-generativeai` | Gemini Vision API client |
+
+---
+
+## [3.0.0] — 2026-06-04
+
+### Sitemap Generator
+
+Production-grade sitemap generation module added as a multi-page Streamlit app extension and standalone CLI script.
+
+#### New files
+
+| File | Description |
+|---|---|
+| `sitemap/__init__.py` | Package root |
+| `sitemap/captioner.py` | `CAPTION_MAP` (40+ manually-reviewed page+folder captions), `generate_caption()` |
+| `sitemap/clients.py` | `build_gsc_client(sa_json)` — shared GSC client factory |
+| `sitemap/cache.py` | JSON file cache — replaces MongoDB; `load_cache`, `save_cache`, `is_fresh`, `append_run_log`, `load_run_log` |
+| `sitemap/crawler.py` | URL + image discovery; seeds from `/sitemap.xml`, follows internal links; `should_exclude()`, rate limiting, exponential backoff |
+| `sitemap/gsc_enricher.py` | Single-call GSC batch query → `derive_priority()`, `derive_changefreq()`, `enrich()` |
+| `sitemap/builder.py` | Standards-compliant XML assembly using stdlib only (`xml.etree.ElementTree` + `xml.dom.minidom`) |
+| `pages/sitemap_generator.py` | Streamlit UI — last-run stats, live progress bar, force re-crawl, GSC toggle, download button, URL dataframe |
+| `scripts/generate_sitemap.py` | CLI — `--force`, `--dry-run`, `--output`, `--no-gsc`, `--verbose`; exit codes 0/1/2 |
+| `tests/test_captioner.py` | 6 pytest unit tests — all passing |
+| `output/.gitkeep` | Ensures `output/` directory exists in repo; generated files are gitignored |
+| `.gitignore` | Excludes `output/sitemap.xml`, `output/sitemap_cache.json`, `output/sitemap_runs.jsonl`, `__pycache__/`, `secrets.toml` |
+
+#### Crawler
+
+- Seeds from existing `/sitemap.xml`, then follows all internal links
+- Per page: canonical URL, HTTP status, Last-Modified header, all `<img>` src + alt
+- Skips `<meta name="robots" content="noindex">` pages
+- Hard exclusion patterns: `/assets/`, `/uploads/`, image/doc extensions, query strings, LinkedIn, specific upload paths
+- Rate limiting: `ThreadPoolExecutor(max_workers=2)`, 300ms sleep between batches
+- Exponential backoff on HTTP 429, up to 3 retries
+- `on_progress(done, in_queue, excluded)` callback for live UI updates
+
+#### GSC enrichment
+
+- Single paginated API call fetches all pages in one request (replaces per-URL queries — ~196× faster)
+- Priority thresholds: homepage=1.0, >5000 impr=0.9, >1000=0.8, >200=0.7, >50=0.6, else=0.5
+- `changefreq`: `"weekly"` only if impressions >200 AND position <10; otherwise `"monthly"`; never `"daily"`
+- `on_progress(done, total)` callback
+
+#### Image captions
+
+- 40+ manually-reviewed captions in `CAPTION_MAP` keyed by `(page_path, folder)`
+- Folder detection: Banner-Image, product-image, client-image, Certificate-Image, Leadership_image, Testimony_image, Claim-process, blog, career-image
+- Blog images: caption derived from filename slug
+- Fallbacks per folder type: consistent brand wording with page slug interpolation
+
+#### XML output
+
+- `sitemap.xml` — `<urlset>` with `xmlns:image` namespace; per URL: `<loc>`, `<lastmod>` (date only, omitted if unknown), `<changefreq>`, `<priority>`, `<image:image>` blocks with `<image:loc>` and `<image:caption>`
+- `sitemap-index.xml` — points to `sitemap.xml`
+- Sort order: homepage first → descending priority → alphabetical
+- Post-write assertion: parses file back and verifies URL count matches
+- Identical inputs produce byte-identical output (idempotent)
+
+#### Cache
+
+- `output/sitemap_cache.json` — URL-keyed, upserted on each run; 7-day freshness check
+- `output/sitemap_runs.jsonl` — one JSON line per run (url_count, image_count, duration_seconds, status, triggered_by)
+- `force=True` bypasses freshness check and re-crawls everything
+
+#### Security
+
+- Login gate (`st.session_state["logged_in"]`) at top of both new pages
+- Sidebar nav hidden during login screen via CSS (`[data-testid="stSidebarNav"]`)
+- No hardcoded credentials — all via `st.secrets["gcp"]["service_account"]`
+
+#### Verified results
+
+- Dry-run: 196 indexable URLs discovered, 45 excluded, exit code 0
+- `pytest tests/test_captioner.py` — 6/6 passed
+
+#### Dependencies added
+
+| Package | Purpose |
+|---|---|
+| `beautifulsoup4` | HTML parsing in crawler |
+| `tomli` | TOML parsing for CLI secrets fallback (Python < 3.11 backport) |
+| `pytest` | Unit test runner |
+
+---
+
 ## [2.0.0] — 2026-05-29
 
 ### Overview
