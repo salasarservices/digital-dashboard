@@ -172,6 +172,8 @@ def login():
     # ── Page & form scoped styles (login screen only) ─────────────────────
     st.markdown(
         """<style>
+        /* Hide multi-page nav so unauthenticated users cannot navigate to other pages */
+        [data-testid="stSidebarNav"] { display: none !important; }
         /* Full-page dark gradient */
         .stApp,
         [data-testid="stAppViewContainer"] {

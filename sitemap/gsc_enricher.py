@@ -24,45 +24,61 @@ def derive_changefreq(impressions: int, position: float | None) -> str:
     return "monthly"
 
 
-def _query_gsc_page(sc_client: Any, site_url: str, page_url: str) -> dict[str, Any]:
+def _fetch_all_gsc_pages(sc_client: Any, site_url: str) -> dict[str, dict[str, Any]]:
+    """Single paginated API call — all pages for the last 90 days."""
     end = date.today()
     start = end - timedelta(days=90)
-    try:
-        body = {
-            "startDate": start.isoformat(),
-            "endDate": end.isoformat(),
-            "dimensions": ["page"],
-            "dimensionFilterGroups": [{
-                "filters": [{
-                    "dimension": "page",
-                    "operator": "equals",
-                    "expression": page_url,
-                }]
-            }],
-            "rowLimit": 1,
-        }
-        rows = sc_client.searchanalytics().query(siteUrl=site_url, body=body).execute().get("rows", [])
-        if not rows:
-            return {}
-        row = rows[0]
-        return {
-            "gsc_clicks":      row.get("clicks", 0),
-            "gsc_impressions": row.get("impressions", 0),
-            "gsc_ctr":         row.get("ctr", 0.0),
-            "gsc_position":    row.get("position"),
-        }
-    except Exception:
-        return {}
+    result: dict[str, dict[str, Any]] = {}
+    start_row = 0
+    row_limit = 1000
+    while True:
+        try:
+            body = {
+                "startDate":  start.isoformat(),
+                "endDate":    end.isoformat(),
+                "dimensions": ["page"],
+                "rowLimit":   row_limit,
+                "startRow":   start_row,
+            }
+            rows = (
+                sc_client.searchanalytics()
+                .query(siteUrl=site_url, body=body)
+                .execute()
+                .get("rows", [])
+            )
+        except Exception:
+            break
+        for row in rows:
+            url = row["keys"][0]
+            result[url] = {
+                "gsc_clicks":      row.get("clicks", 0),
+                "gsc_impressions": row.get("impressions", 0),
+                "gsc_ctr":         row.get("ctr", 0.0),
+                "gsc_position":    row.get("position"),
+            }
+        if len(rows) < row_limit:
+            break
+        start_row += row_limit
+    return result
 
 
 def enrich(
     pages: list[dict[str, Any]],
     sc_client: Any,
     site_url: str,
+    on_progress: object = None,
 ) -> list[dict[str, Any]]:
-    for page in pages:
+    """
+    Enrich pages with GSC data using a single paginated API call.
+
+    on_progress(done: int, total: int) is called after each page is enriched.
+    """
+    gsc_data = _fetch_all_gsc_pages(sc_client, site_url)
+    total = len(pages)
+
+    for i, page in enumerate(pages):
         url = page["url"]
-        gsc = _query_gsc_page(sc_client, site_url, url)
+        gsc = gsc_data.get(url, {})
 
         impressions = gsc.get("gsc_impressions", 0)
         position = gsc.get("gsc_position")
@@ -74,5 +90,8 @@ def enrich(
         page["gsc_position"] = position
         page["priority"] = derive_priority(impressions, is_hp)
         page["changefreq"] = derive_changefreq(impressions, position)
+
+        if on_progress is not None:
+            on_progress(i + 1, total)
 
     return pages

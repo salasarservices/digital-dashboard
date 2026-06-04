@@ -155,7 +155,14 @@ def crawl(
     cache: dict[str, Any] | None = None,
     force: bool = False,
     verbose: bool = False,
+    on_progress: object = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Crawl base_url and return (indexable_pages, excluded_pages).
+
+    on_progress(done: int, in_queue: int, excluded_count: int) is called
+    after every URL is processed so callers can show live progress.
+    """
     if cache is None:
         cache = {}
 
@@ -193,6 +200,8 @@ def crawl(
                     for link in record.get("internal_links", []):
                         if link not in visited and not should_exclude(link):
                             queue.add(link)
+                if on_progress is not None:
+                    on_progress(len(results), len(queue), len(excluded))
 
         if queue:
             time.sleep(_BATCH_SLEEP)
