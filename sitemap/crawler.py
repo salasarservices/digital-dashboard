@@ -23,6 +23,8 @@ EXCLUSION_PATTERNS: list[str] = [
     r'/linkedin\.com/',
     r'/assets/Frontend/images/upload-notes\.png',
     r'/assets/upload/client-image/-',
+    r'facebook\.com/tr',      # Facebook pixel tracking URLs — not images
+    r'google.*tag',           # Google Tag Manager / Analytics pixels
 ]
 
 _COMPILED_EXCLUSIONS = [re.compile(p) for p in EXCLUSION_PATTERNS]

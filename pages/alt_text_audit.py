@@ -119,6 +119,9 @@ def _analyze_image(model: object, img_url: str, page_path: str, folder: str) -> 
         )
         if resp.status_code != 200:
             return "DOWNLOAD_FAILED"
+        content_type = resp.headers.get("Content-Type", "")
+        if "text" in content_type or "javascript" in content_type or len(resp.content) < 100:
+            return "SKIP_NOT_IMAGE"
         img = VertexImage.from_bytes(resp.content)
     except Exception:
         return "DOWNLOAD_FAILED"
