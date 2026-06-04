@@ -2,11 +2,56 @@
 
 ---
 
+## [3.2.0] — 2026-06-04
+
+### Auth fixes, pixel exclusions, SDK migration
+
+#### Auth — switched to Claude Haiku for image analysis
+
+Multiple Google auth approaches were attempted and blocked by the `salasarservices.co.in` organisation policy:
+
+| Attempt | Outcome |
+|---|---|
+| Service account + `google-generativeai` | 401 — `AQ.` key format rejected |
+| Service account + Vertex AI SDK | 403 — org billing policy blocked |
+| `AQ.` key + `google-generativeai` | 401 — deprecated package |
+| `AQ.` key + `google-genai` | 401 — `AQ.` not accepted as API key |
+
+**Final solution:** Switched to **Anthropic Claude Haiku** (`claude-haiku-4-5`) via standard `sk-ant-...` API key — no org restrictions, works immediately.
+
+- `pages/alt_text_audit.py`: `anthropic.Anthropic(api_key=)` client; base64 image encoding; `messages.create()` with image + text content blocks
+- `requirements.txt`: removed `google-genai`, added `anthropic`
+- Secrets: `st.secrets["anthropic"]["api_key"]`
+- Cost: ~$0.0017/image (~$0.72 for 423-image full site audit)
+
+#### Crawler — tracking pixel exclusions
+
+`sitemap/crawler.py` exclusion patterns updated to skip non-image URLs that were being collected as images:
+
+```python
+r'facebook\.com/tr',   # Facebook pixel (returns 1x1 GIF tracking beacon)
+r'google.*tag',        # Google Tag Manager / Analytics pixels
+```
+
+#### Audit page — non-image content guard
+
+`pages/alt_text_audit.py` now checks `Content-Type` header and payload size before sending to AI:
+- Skips URLs returning `text/*` or `application/javascript`
+- Skips payloads under 100 bytes (tracking beacons)
+- Returns `SKIP_NOT_IMAGE` instead of crashing
+
+#### Deprecated packages removed
+
+- `google-generativeai` — officially deprecated, replaced by `google-genai` then by `anthropic`
+- `google-cloud-aiplatform` — kept (used by Vertex AI SDK, may be needed for other future features)
+
+---
+
 ## [3.1.0] — 2026-06-04
 
-### Alt Text Audit — Gemini Vision
+### Alt Text Audit — Claude Haiku Vision
 
-New Streamlit page and CLI script that analyses every website image using Google Gemini 1.5 Flash, compares AI-generated captions against current sitemap captions, and presents a side-by-side review table.
+New Streamlit page and CLI script that analyses every website image using Claude Haiku, compares AI-generated captions against current sitemap captions, and presents a side-by-side review table.
 
 #### New files
 
